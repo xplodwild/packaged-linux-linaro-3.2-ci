@@ -46,7 +46,7 @@ static int yama_ptracer_add(struct task_struct *tracer,
 	struct ptrace_relation *entry, *relation = NULL;
 
 	added = kmalloc(sizeof(*added), GFP_KERNEL);
-	spin_lock(&ptracer_relations_lock);
+	spin_lock_bh(&ptracer_relations_lock);
 	list_for_each_entry(entry, &ptracer_relations, node)
 		if (entry->tracee == tracee) {
 			relation = entry;
@@ -64,7 +64,7 @@ static int yama_ptracer_add(struct task_struct *tracer,
 	relation->tracer = tracer;
 
 unlock_out:
-	spin_unlock(&ptracer_relations_lock);
+	spin_unlock_bh(&ptracer_relations_lock);
 	if (added && added != relation)
 		kfree(added);
 
@@ -82,7 +82,7 @@ static void yama_ptracer_del(struct task_struct *tracer,
 	struct ptrace_relation *relation;
 	struct list_head *list, *safe;
 
-	spin_lock(&ptracer_relations_lock);
+	spin_lock_bh(&ptracer_relations_lock);
 	list_for_each_safe(list, safe, &ptracer_relations) {
 		relation = list_entry(list, struct ptrace_relation, node);
 		if (relation->tracee == tracee ||
@@ -91,7 +91,7 @@ static void yama_ptracer_del(struct task_struct *tracer,
 			kfree(relation);
 		}
 	}
-	spin_unlock(&ptracer_relations_lock);
+	spin_unlock_bh(&ptracer_relations_lock);
 }
 
 /**
@@ -208,7 +208,7 @@ static int ptracer_exception_found(struct task_struct *tracer,
 	struct ptrace_relation *relation;
 	struct task_struct *parent = NULL;
 
-	spin_lock(&ptracer_relations_lock);
+	spin_lock_bh(&ptracer_relations_lock);
 
 	rcu_read_lock();
 	read_lock(&tasklist_lock);
@@ -224,7 +224,7 @@ static int ptracer_exception_found(struct task_struct *tracer,
 
 	if (task_is_descendant(parent, tracer))
 		rc = 1;
-	spin_unlock(&ptracer_relations_lock);
+	spin_unlock_bh(&ptracer_relations_lock);
 
 	return rc;
 }
