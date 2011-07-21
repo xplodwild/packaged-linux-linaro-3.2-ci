@@ -1,9 +1,0 @@
-aes_generic
-arc4
-cfg80211
-ecb
-lib80211
-mac80211
-ramzswap
-scsi_wait_scan
-xvmalloc
