@@ -296,6 +296,7 @@ CONFIG_VMSPLIT_2G=y
 # CONFIG_W1 is not set
 # CONFIG_WATCHDOG is not set
 # CONFIG_WIRELESS is not set
+# CONFIG_WL12XX_MENU is not set
 # CONFIG_WLAN is not set
 # CONFIG_XFRM_MIGRATE is not set
 # CONFIG_XFRM_USER is not set
