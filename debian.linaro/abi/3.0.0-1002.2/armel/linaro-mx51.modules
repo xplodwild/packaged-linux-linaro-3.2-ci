@@ -14,12 +14,10 @@ isofs
 libata
 lzo
 mii
-mmc_block
 msdos
 psmouse
 ramzswap
 scsi_wait_scan
-sdhci
 serport
 udf
 xvmalloc
