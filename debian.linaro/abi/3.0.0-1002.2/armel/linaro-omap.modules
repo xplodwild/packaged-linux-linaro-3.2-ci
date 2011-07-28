@@ -47,4 +47,6 @@ snd-usb-audio
 snd-usbmidi-lib
 soundcore
 usb8xxx
+wl12xx
+wl12xx_sdio
 xvmalloc
