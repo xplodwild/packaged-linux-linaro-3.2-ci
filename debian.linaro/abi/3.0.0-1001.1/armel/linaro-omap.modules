@@ -8,12 +8,17 @@ ecb
 g_mass_storage
 g_zero
 hci_uart
+ledtrig-backlight
+ledtrig-default-on
+ledtrig-gpio
+ledtrig-timer
 lib80211
 libertas
 libertas_sdio
 mac80211
 ramzswap
 scsi_wait_scan
+smsc95xx
 snd
 snd-hwdep
 snd-mixer-oss
