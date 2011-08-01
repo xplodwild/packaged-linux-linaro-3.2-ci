@@ -86,3 +86,11 @@ value CONFIG_LIBCRC32C y
 
 # LINARO kernels should have TIMER_STATS on (LP: 718677)
 value CONFIG_TIMER_STATS y
+
+# LINARO kernels should have basic profiling and tracing options on (LP: 764796)
+value CONFIG_PROFILING y
+value CONFIG_PERF_EVENTS y
+value CONFIG_HW_PERF_EVENTS y
+value CONFIG_FTRACE y
+value CONFIG_ENABLE_DEFAULT_TRACERS y | value CONFIG_GENERIC_TRACER y
+value CONFIG_HIGH_RES_TIMERS y
