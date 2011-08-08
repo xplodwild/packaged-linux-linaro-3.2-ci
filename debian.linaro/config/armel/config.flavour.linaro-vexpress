@@ -34,7 +34,6 @@ CONFIG_CMDLINE="root=/dev/nfs nfsroot=10.1.69.3:/work/nfsroot ip=dhcp console=tt
 # CONFIG_CONNECTOR is not set
 # CONFIG_CORE_DUMP_DEFAULT_ELF_HEADERS is not set
 CONFIG_CRAMFS=y
-# CONFIG_CRC16 is not set
 # CONFIG_CRC7 is not set
 # CONFIG_CRC_CCITT is not set
 # CONFIG_CRC_ITU_T is not set
@@ -67,10 +66,6 @@ CONFIG_DETECT_HUNG_TASK=y
 # CONFIG_DRM is not set
 # CONFIG_EXPERT is not set
 # CONFIG_EXT2_FS_XATTR is not set
-# CONFIG_EXT3_DEFAULTS_TO_ORDERED is not set
-CONFIG_EXT3_FS=y
-# CONFIG_EXT3_FS_XATTR is not set
-# CONFIG_EXT4_FS is not set
 CONFIG_FB_CFB_COPYAREA=y
 CONFIG_FB_CFB_FILLRECT=y
 CONFIG_FB_CFB_IMAGEBLIT=y
