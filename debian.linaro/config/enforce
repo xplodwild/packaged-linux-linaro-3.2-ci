@@ -94,3 +94,8 @@ value CONFIG_HW_PERF_EVENTS y
 value CONFIG_FTRACE y
 value CONFIG_ENABLE_DEFAULT_TRACERS y | value CONFIG_GENERIC_TRACER y
 value CONFIG_HIGH_RES_TIMERS y
+
+# LINARO kernels should be able to boot with any EXT rootfs without an initrd
+value CONFIG_EXT2_FS y
+value CONFIG_EXT3_FS y
+value CONFIG_EXT4_FS y
