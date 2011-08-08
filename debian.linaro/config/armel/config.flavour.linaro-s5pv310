@@ -32,7 +32,6 @@ CONFIG_CMDLINE="root=/dev/ram0 rw ramdisk=8192 initrd=0x41000000,8M console=ttyS
 CONFIG_CORE_DUMP_DEFAULT_ELF_HEADERS=y
 # CONFIG_CPU_FREQ is not set
 CONFIG_CRAMFS=y
-# CONFIG_CRC16 is not set
 # CONFIG_CRC7 is not set
 CONFIG_CRC_CCITT=y
 # CONFIG_CRC_ITU_T is not set
@@ -66,8 +65,6 @@ CONFIG_DETECT_HUNG_TASK=y
 # CONFIG_DRM is not set
 # CONFIG_EXPERT is not set
 # CONFIG_EXT2_FS_XATTR is not set
-# CONFIG_EXT3_FS is not set
-# CONFIG_EXT4_FS is not set
 # CONFIG_FB_CFB_COPYAREA is not set
 # CONFIG_FB_CFB_FILLRECT is not set
 # CONFIG_FB_CFB_IMAGEBLIT is not set
