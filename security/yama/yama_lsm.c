@@ -331,10 +331,9 @@ static int yama_generic_permission(struct inode *inode, int mask)
 	int retval;
 
 	if (inode->i_op->permission)
-		retval = inode->i_op->permission(inode, mask, 0);
+		retval = inode->i_op->permission(inode, mask);
 	else
-		retval = generic_permission(inode, mask, 0,
-				inode->i_op->check_acl);
+		retval = generic_permission(inode, mask);
 	return retval;
 }
 
