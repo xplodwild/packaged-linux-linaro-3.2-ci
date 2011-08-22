@@ -1,3 +1,4 @@
+ac97_bus
 aes_generic
 arc4
 bcm203x
@@ -20,6 +21,8 @@ ramzswap
 scsi_wait_scan
 smsc95xx
 snd
+snd-aaci
+snd-ac97-codec
 snd-hwdep
 snd-mixer-oss
 snd-page-alloc
