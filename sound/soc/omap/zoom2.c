@@ -166,26 +166,14 @@ static struct snd_soc_card snd_soc_zoom2 = {
 	.num_dapm_routes = ARRAY_SIZE(audio_map),
 };
 
-static struct platform_device *zoom2_snd_device;
-
-static int __init zoom2_soc_init(void)
+static int __devinit zoom2_soc_probe(struct platform_device *pdev)
 {
+	struct snd_soc_card *card = &snd_soc_zoom2;
 	int ret;
 
-	if (!machine_is_omap_zoom2())
-		return -ENODEV;
-	printk(KERN_INFO "Zoom2 SoC init\n");
+	pr_info("Zoom2 SoC init\n");
 
-	zoom2_snd_device = platform_device_alloc("soc-audio", -1);
-	if (!zoom2_snd_device) {
-		printk(KERN_ERR "Platform device allocation failed\n");
-		return -ENOMEM;
-	}
-
-	platform_set_drvdata(zoom2_snd_device, &snd_soc_zoom2);
-	ret = platform_device_add(zoom2_snd_device);
-	if (ret)
-		goto err1;
+	card->dev = &pdev->dev;
 
 	BUG_ON(gpio_request(ZOOM2_HEADSET_MUX_GPIO, "hs_mux") < 0);
 	gpio_direction_output(ZOOM2_HEADSET_MUX_GPIO, 0);
@@ -193,26 +181,57 @@ static int __init zoom2_soc_init(void)
 	BUG_ON(gpio_request(ZOOM2_HEADSET_EXTMUTE_GPIO, "ext_mute") < 0);
 	gpio_direction_output(ZOOM2_HEADSET_EXTMUTE_GPIO, 0);
 
+	ret = snd_soc_register_card(card);
+	if (ret) {
+		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
+			ret);
+		goto err;
+	}
+
 	return 0;
 
-err1:
-	printk(KERN_ERR "Unable to add platform device\n");
-	platform_device_put(zoom2_snd_device);
+err:
+	gpio_free(ZOOM2_HEADSET_MUX_GPIO);
+	gpio_free(ZOOM2_HEADSET_EXTMUTE_GPIO);
 
 	return ret;
+}
+
+static int __devexit zoom2_soc_remove(struct platform_device *pdev)
+{
+	struct snd_soc_card *card = platform_get_drvdata(pdev);
+
+	snd_soc_unregister_card(card);
+
+	gpio_free(ZOOM2_HEADSET_MUX_GPIO);
+	gpio_free(ZOOM2_HEADSET_EXTMUTE_GPIO);
+
+	return 0;
+}
+
+static struct platform_driver zoom2_driver = {
+	.driver = {
+		.name = "zoom2-soc-audio",
+		.owner = THIS_MODULE,
+	},
+
+	.probe = zoom2_soc_probe,
+	.remove = __devexit_p(zoom2_soc_remove),
+};
+
+static int __init zoom2_soc_init(void)
+{
+	return platform_driver_register(&zoom2_driver);
 }
 module_init(zoom2_soc_init);
 
 static void __exit zoom2_soc_exit(void)
 {
-	gpio_free(ZOOM2_HEADSET_MUX_GPIO);
-	gpio_free(ZOOM2_HEADSET_EXTMUTE_GPIO);
-
-	platform_device_unregister(zoom2_snd_device);
+	platform_driver_unregister(&zoom2_driver);
 }
 module_exit(zoom2_soc_exit);
 
 MODULE_AUTHOR("Misael Lopez Cruz <x0052729@ti.com>");
 MODULE_DESCRIPTION("ALSA SoC Zoom2");
 MODULE_LICENSE("GPL");
-
+MODULE_ALIAS("platform:zoom2-soc-audio");
