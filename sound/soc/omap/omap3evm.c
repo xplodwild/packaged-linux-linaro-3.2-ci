@@ -74,44 +74,57 @@ static struct snd_soc_card snd_soc_omap3evm = {
 	.num_links = 1,
 };
 
-static struct platform_device *omap3evm_snd_device;
+static int __devinit omap3evm_soc_probe(struct platform_device *pdev)
+{
+	struct snd_soc_card *card = &snd_soc_omap3evm;
+	int ret;
+
+	pr_info("OMAP3 EVM SoC init\n");
+
+	card->dev = &pdev->dev;
+
+	ret = snd_soc_register_card(card);
+	if (ret) {
+		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
+			ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+static int __devexit omap3evm_soc_remove(struct platform_device *pdev)
+{
+	struct snd_soc_card *card = platform_get_drvdata(pdev);
+
+	snd_soc_unregister_card(card);
+
+	return 0;
+}
+
+static struct platform_driver omap3evm_driver = {
+	.driver = {
+		.name = "omap3evm-soc-audio",
+		.owner = THIS_MODULE,
+	},
+
+	.probe = omap3evm_soc_probe,
+	.remove = __devexit_p(omap3evm_soc_remove),
+};
 
 static int __init omap3evm_soc_init(void)
 {
-	int ret;
-
-	if (!machine_is_omap3evm())
-		return -ENODEV;
-	pr_info("OMAP3 EVM SoC init\n");
-
-	omap3evm_snd_device = platform_device_alloc("soc-audio", -1);
-	if (!omap3evm_snd_device) {
-		printk(KERN_ERR "Platform device allocation failed\n");
-		return -ENOMEM;
-	}
-
-	platform_set_drvdata(omap3evm_snd_device, &snd_soc_omap3evm);
-	ret = platform_device_add(omap3evm_snd_device);
-	if (ret)
-		goto err1;
-
-	return 0;
-
-err1:
-	printk(KERN_ERR "Unable to add platform device\n");
-	platform_device_put(omap3evm_snd_device);
-
-	return ret;
+	return platform_driver_register(&omap3evm_driver);
 }
+module_init(omap3evm_soc_init);
 
 static void __exit omap3evm_soc_exit(void)
 {
-	platform_device_unregister(omap3evm_snd_device);
+	platform_driver_unregister(&omap3evm_driver);
 }
-
-module_init(omap3evm_soc_init);
 module_exit(omap3evm_soc_exit);
 
 MODULE_AUTHOR("Anuj Aggarwal <anuj.aggarwal@ti.com>");
 MODULE_DESCRIPTION("ALSA SoC OMAP3 EVM");
 MODULE_LICENSE("GPL v2");
+MODULE_ALIAS("platform:omap3evm-soc-audio");
