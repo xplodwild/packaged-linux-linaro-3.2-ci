@@ -76,44 +76,57 @@ static struct snd_soc_card snd_soc_card_igep2 = {
 	.num_links = 1,
 };
 
-static struct platform_device *igep2_snd_device;
+static int __devinit igep2_soc_probe(struct platform_device *pdev)
+{
+	struct snd_soc_card *card = &snd_soc_card_igep2;
+	int ret;
+
+	printk(KERN_INFO "IGEP v2 SoC init\n");
+
+	card->dev = &pdev->dev;
+
+	ret = snd_soc_register_card(card);
+	if (ret) {
+		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
+			ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+static int __devexit igep2_soc_remove(struct platform_device *pdev)
+{
+	struct snd_soc_card *card = platform_get_drvdata(pdev);
+
+	snd_soc_unregister_card(card);
+
+	return 0;
+}
+
+static struct platform_driver igep2_driver = {
+	.driver = {
+		.name = "igep2-soc-audio",
+		.owner = THIS_MODULE,
+	},
+
+	.probe = igep2_soc_probe,
+	.remove = __devexit_p(igep2_soc_remove),
+};
 
 static int __init igep2_soc_init(void)
 {
-	int ret;
-
-	if (!machine_is_igep0020())
-		return -ENODEV;
-	printk(KERN_INFO "IGEP v2 SoC init\n");
-
-	igep2_snd_device = platform_device_alloc("soc-audio", -1);
-	if (!igep2_snd_device) {
-		printk(KERN_ERR "Platform device allocation failed\n");
-		return -ENOMEM;
-	}
-
-	platform_set_drvdata(igep2_snd_device, &snd_soc_card_igep2);
-
-	ret = platform_device_add(igep2_snd_device);
-	if (ret)
-		goto err1;
-
-	return 0;
-
-err1:
-	printk(KERN_ERR "Unable to add platform device\n");
-	platform_device_put(igep2_snd_device);
-
-	return ret;
+	return platform_driver_register(&igep2_driver);
 }
 module_init(igep2_soc_init);
 
 static void __exit igep2_soc_exit(void)
 {
-	platform_device_unregister(igep2_snd_device);
+	platform_driver_unregister(&igep2_driver);
 }
 module_exit(igep2_soc_exit);
 
 MODULE_AUTHOR("Enric Balletbo i Serra <eballetbo@iseebcn.com>");
 MODULE_DESCRIPTION("ALSA SoC IGEP v2");
 MODULE_LICENSE("GPL");
+MODULE_ALIAS("platform:igep2-soc-audio");

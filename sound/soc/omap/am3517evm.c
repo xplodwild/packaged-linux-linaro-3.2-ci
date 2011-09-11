@@ -116,45 +116,57 @@ static struct snd_soc_card snd_soc_am3517evm = {
 	.num_dapm_routes = ARRAY_SIZE(audio_map),
 };
 
-static struct platform_device *am3517evm_snd_device;
+static int __devinit am3517evm_soc_probe(struct platform_device *pdev)
+{
+	struct snd_soc_card *card = &snd_soc_am3517evm;
+	int ret;
+
+	pr_info("OMAP3517 / AM3517 EVM SoC init\n");
+
+	card->dev = &pdev->dev;
+
+	ret = snd_soc_register_card(card);
+	if (ret) {
+		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
+			ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+static int __devexit am3517evm_soc_remove(struct platform_device *pdev)
+{
+	struct snd_soc_card *card = platform_get_drvdata(pdev);
+
+	snd_soc_unregister_card(card);
+
+	return 0;
+}
+
+static struct platform_driver am3517evm_driver = {
+	.driver = {
+		.name = "am3517evm-soc-audio",
+		.owner = THIS_MODULE,
+	},
+
+	.probe = am3517evm_soc_probe,
+	.remove = __devexit_p(am3517evm_soc_remove),
+};
 
 static int __init am3517evm_soc_init(void)
 {
-	int ret;
-
-	if (!machine_is_omap3517evm())
-		return -ENODEV;
-	pr_info("OMAP3517 / AM3517 EVM SoC init\n");
-
-	am3517evm_snd_device = platform_device_alloc("soc-audio", -1);
-	if (!am3517evm_snd_device) {
-		printk(KERN_ERR "Platform device allocation failed\n");
-		return -ENOMEM;
-	}
-
-	platform_set_drvdata(am3517evm_snd_device, &snd_soc_am3517evm);
-
-	ret = platform_device_add(am3517evm_snd_device);
-	if (ret)
-		goto err1;
-
-	return 0;
-
-err1:
-	printk(KERN_ERR "Unable to add platform device\n");
-	platform_device_put(am3517evm_snd_device);
-
-	return ret;
+	return platform_driver_register(&am3517evm_driver);
 }
+module_init(am3517evm_soc_init);
 
 static void __exit am3517evm_soc_exit(void)
 {
-	platform_device_unregister(am3517evm_snd_device);
+	platform_driver_unregister(&am3517evm_driver);
 }
-
-module_init(am3517evm_soc_init);
 module_exit(am3517evm_soc_exit);
 
 MODULE_AUTHOR("Anuj Aggarwal <anuj.aggarwal@ti.com>");
 MODULE_DESCRIPTION("ALSA SoC OMAP3517 / AM3517 EVM");
 MODULE_LICENSE("GPL v2");
+MODULE_ALIAS("platform:am3517evm-soc-audio");

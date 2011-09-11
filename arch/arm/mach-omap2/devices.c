@@ -285,6 +285,10 @@ static struct platform_device omap_pcm = {
 	.id	= -1,
 };
 
+static struct platform_device omap_soc_audio = {
+	.id	= -1,
+};
+
 /*
  * OMAP2420 has 2 McBSP ports
  * OMAP2430 has 5 McBSP ports
@@ -297,8 +301,30 @@ OMAP_MCBSP_PLATFORM_DEVICE(3);
 OMAP_MCBSP_PLATFORM_DEVICE(4);
 OMAP_MCBSP_PLATFORM_DEVICE(5);
 
+static struct {
+	int machine;
+	const char *name;
+} soc_device_names[] = {
+	{ MACH_TYPE_OMAP3517EVM,	"am3517evm-soc-audio"	},
+	{ MACH_TYPE_IGEP0020,		"igep2-soc-audio"	},
+	{ MACH_TYPE_NOKIA_N810,		"n8x1-soc-audio"	},
+	{ MACH_TYPE_NOKIA_N810_WIMAX,	"n8x1-soc-audio"	},
+	{ MACH_TYPE_OMAP3_BEAGLE,	"omap3beagle-soc-audio"	},
+	{ MACH_TYPE_DEVKIT8000,		"omap3beagle-soc-audio"	},
+	{ MACH_TYPE_OMAP3EVM,		"omap3evm-soc-audio"	},
+	{ MACH_TYPE_OMAP3_PANDORA,	"pandora-soc-audio"	},
+	{ MACH_TYPE_OVERO,		"overo-soc-audio",	},
+	{ MACH_TYPE_CM_T35,		"overo-soc-audio",	},
+	{ MACH_TYPE_NOKIA_RX51,		"rx51-soc-audio",	},
+	{ MACH_TYPE_OMAP_3430SDP,	"sdp3430-soc-audio",	},
+	{ MACH_TYPE_OMAP_4430SDP,	"sdp4430-soc-audio",	},
+	{ MACH_TYPE_OMAP_ZOOM2,		"zoom2-soc-audio",	},
+};
+
 static void omap_init_audio(void)
 {
+	int i;
+
 	platform_device_register(&omap_mcbsp1);
 	platform_device_register(&omap_mcbsp2);
 	if (cpu_is_omap243x() || cpu_is_omap34xx() || cpu_is_omap44xx()) {
@@ -309,6 +335,14 @@ static void omap_init_audio(void)
 		platform_device_register(&omap_mcbsp5);
 
 	platform_device_register(&omap_pcm);
+
+	for (i = 0; i < ARRAY_SIZE(soc_device_names); i++) {
+		if (machine_arch_type == soc_device_names[i].machine) {
+			omap_soc_audio.name = soc_device_names[i].name;
+			platform_device_register(&omap_soc_audio);
+			break;
+		}
+	}
 }
 
 #else
