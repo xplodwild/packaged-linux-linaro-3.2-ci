@@ -300,38 +300,25 @@ static struct snd_soc_card snd_soc_n810 = {
 	.num_dapm_routes = ARRAY_SIZE(audio_map),
 };
 
-static struct platform_device *n810_snd_device;
-
-static int __init n810_soc_init(void)
+static int __devinit n810_soc_probe(struct platform_device *pdev)
 {
+	struct snd_soc_card *card = &snd_soc_n810;
+	struct device *dev = &pdev->dev;
 	int err;
-	struct device *dev;
 
-	if (!(machine_is_nokia_n810() || machine_is_nokia_n810_wimax()))
-		return -ENODEV;
-
-	n810_snd_device = platform_device_alloc("soc-audio", -1);
-	if (!n810_snd_device)
-		return -ENOMEM;
-
-	platform_set_drvdata(n810_snd_device, &snd_soc_n810);
-	err = platform_device_add(n810_snd_device);
-	if (err)
-		goto err1;
-
-	dev = &n810_snd_device->dev;
+	card->dev = dev;
 
 	sys_clkout2_src = clk_get(dev, "sys_clkout2_src");
 	if (IS_ERR(sys_clkout2_src)) {
 		dev_err(dev, "Could not get sys_clkout2_src clock\n");
 		err = PTR_ERR(sys_clkout2_src);
-		goto err2;
+		return err;
 	}
 	sys_clkout2 = clk_get(dev, "sys_clkout2");
 	if (IS_ERR(sys_clkout2)) {
 		dev_err(dev, "Could not get sys_clkout2\n");
 		err = PTR_ERR(sys_clkout2);
-		goto err3;
+		goto err1;
 	}
 	/*
 	 * Configure 12 MHz output on SYS_CLKOUT2. Therefore we must use
@@ -341,7 +328,7 @@ static int __init n810_soc_init(void)
 	if (IS_ERR(func96m_clk)) {
 		dev_err(dev, "Could not get func 96M clock\n");
 		err = PTR_ERR(func96m_clk);
-		goto err4;
+		goto err2;
 	}
 	clk_set_parent(sys_clkout2_src, func96m_clk);
 	clk_set_rate(sys_clkout2, 12000000);
@@ -352,33 +339,62 @@ static int __init n810_soc_init(void)
 	gpio_direction_output(N810_HEADSET_AMP_GPIO, 0);
 	gpio_direction_output(N810_SPEAKER_AMP_GPIO, 0);
 
+	err = snd_soc_register_card(card);
+	if (err) {
+		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
+			err);
+		goto err3;
+	}
+
 	return 0;
-err4:
-	clk_put(sys_clkout2);
 err3:
-	clk_put(sys_clkout2_src);
+	clk_put(func96m_clk);
 err2:
-	platform_device_del(n810_snd_device);
+	clk_put(sys_clkout2);
 err1:
-	platform_device_put(n810_snd_device);
+	clk_put(sys_clkout2_src);
 
 	return err;
 }
 
-static void __exit n810_soc_exit(void)
+static int __devexit n810_soc_remove(struct platform_device *pdev)
 {
+	struct snd_soc_card *card = platform_get_drvdata(pdev);
+
 	gpio_free(N810_SPEAKER_AMP_GPIO);
 	gpio_free(N810_HEADSET_AMP_GPIO);
 	clk_put(sys_clkout2_src);
 	clk_put(sys_clkout2);
 	clk_put(func96m_clk);
 
-	platform_device_unregister(n810_snd_device);
+	snd_soc_unregister_card(card);
+
+	return 0;
 }
 
+static struct platform_driver n810_driver = {
+	.driver = {
+		.name = "n8x0-soc-audio",
+		.owner = THIS_MODULE,
+	},
+
+	.probe = n810_soc_probe,
+	.remove = __devexit_p(n810_soc_remove),
+};
+
+static int __init n810_soc_init(void)
+{
+	return platform_driver_register(&n810_driver);
+}
 module_init(n810_soc_init);
+
+static void __exit n810_soc_exit(void)
+{
+	platform_driver_unregister(&n810_driver);
+}
 module_exit(n810_soc_exit);
 
 MODULE_AUTHOR("Jarkko Nikula <jarkko.nikula@bitmer.com>");
 MODULE_DESCRIPTION("ALSA SoC Nokia N810");
 MODULE_LICENSE("GPL");
+MODULE_ALIAS("platform:n8x0-soc-audio");
