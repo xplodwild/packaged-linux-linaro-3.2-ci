@@ -237,16 +237,14 @@ static struct snd_soc_card snd_soc_card_omap3pandora = {
 	.num_links = ARRAY_SIZE(omap3pandora_dai),
 };
 
-static struct platform_device *omap3pandora_snd_device;
-
-static int __init omap3pandora_soc_init(void)
+static int __devinit omap3pandora_soc_probe(struct platform_device *pdev)
 {
+	struct snd_soc_card *card = &snd_soc_card_omap3pandora;
 	int ret;
 
-	if (!machine_is_omap3_pandora())
-		return -ENODEV;
-
 	pr_info("OMAP3 Pandora SoC init\n");
+
+	card->dev = &pdev->dev;
 
 	ret = gpio_request(OMAP3_PANDORA_DAC_POWER_GPIO, "dac_power");
 	if (ret) {
@@ -272,53 +270,68 @@ static int __init omap3pandora_soc_init(void)
 		goto fail1;
 	}
 
-	omap3pandora_snd_device = platform_device_alloc("soc-audio", -1);
-	if (omap3pandora_snd_device == NULL) {
-		pr_err(PREFIX "Platform device allocation failed\n");
-		ret = -ENOMEM;
+	ret = snd_soc_register_card(card);
+	if (ret) {
+		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
+			ret);
 		goto fail1;
 	}
 
-	platform_set_drvdata(omap3pandora_snd_device, &snd_soc_card_omap3pandora);
-
-	ret = platform_device_add(omap3pandora_snd_device);
-	if (ret) {
-		pr_err(PREFIX "Unable to add platform device\n");
-		goto fail2;
-	}
-
-	omap3pandora_dac_reg = regulator_get(&omap3pandora_snd_device->dev, "vcc");
+	omap3pandora_dac_reg = regulator_get(card->dev, "vcc");
 	if (IS_ERR(omap3pandora_dac_reg)) {
 		pr_err(PREFIX "Failed to get DAC regulator from %s: %ld\n",
-			dev_name(&omap3pandora_snd_device->dev),
+			dev_name(card->dev),
 			PTR_ERR(omap3pandora_dac_reg));
 		ret = PTR_ERR(omap3pandora_dac_reg);
-		goto fail3;
+		goto fail2;
 	}
 
 	return 0;
 
-fail3:
-	platform_device_del(omap3pandora_snd_device);
 fail2:
-	platform_device_put(omap3pandora_snd_device);
+	snd_soc_unregister_card(card);
 fail1:
 	gpio_free(OMAP3_PANDORA_AMP_POWER_GPIO);
 fail0:
 	gpio_free(OMAP3_PANDORA_DAC_POWER_GPIO);
 	return ret;
 }
+
+static int __devexit omap3pandora_soc_remove(struct platform_device *pdev)
+{
+	struct snd_soc_card *card = platform_get_drvdata(pdev);
+
+	regulator_put(omap3pandora_dac_reg);
+	snd_soc_unregister_card(card);
+	gpio_free(OMAP3_PANDORA_AMP_POWER_GPIO);
+	gpio_free(OMAP3_PANDORA_DAC_POWER_GPIO);
+
+	return 0;
+}
+
+static struct platform_driver omap3pandora_driver = {
+	.driver = {
+		.name = "pandora-soc-audio",
+		.owner = THIS_MODULE,
+	},
+
+	.probe = omap3pandora_soc_probe,
+	.remove = __devexit_p(omap3pandora_soc_remove),
+};
+
+static int __init omap3pandora_soc_init(void)
+{
+	return platform_driver_register(&omap3pandora_driver);
+}
 module_init(omap3pandora_soc_init);
 
 static void __exit omap3pandora_soc_exit(void)
 {
-	regulator_put(omap3pandora_dac_reg);
-	platform_device_unregister(omap3pandora_snd_device);
-	gpio_free(OMAP3_PANDORA_AMP_POWER_GPIO);
-	gpio_free(OMAP3_PANDORA_DAC_POWER_GPIO);
+	platform_driver_unregister(&omap3pandora_driver);
 }
 module_exit(omap3pandora_soc_exit);
 
 MODULE_AUTHOR("Grazvydas Ignotas <notasas@gmail.com>");
 MODULE_DESCRIPTION("ALSA SoC OMAP3 Pandora");
 MODULE_LICENSE("GPL");
+MODULE_ALIAS("platform:pandora-soc-audio");
