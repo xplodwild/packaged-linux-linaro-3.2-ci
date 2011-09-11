@@ -222,24 +222,15 @@ static struct snd_soc_card snd_soc_sdp3430 = {
 	.num_dapm_routes = ARRAY_SIZE(audio_map),
 };
 
-static struct platform_device *sdp3430_snd_device;
-
-static int __init sdp3430_soc_init(void)
+static int __devinit sdp3430_soc_probe(struct platform_device *pdev)
 {
+	struct snd_soc_card *card = &snd_soc_sdp3430;
 	int ret;
 	u8 pin_mux;
 
-	if (!machine_is_omap_3430sdp())
-		return -ENODEV;
-	printk(KERN_INFO "SDP3430 SoC init\n");
+	pr_info("SDP3430 SoC init\n");
 
-	sdp3430_snd_device = platform_device_alloc("soc-audio", -1);
-	if (!sdp3430_snd_device) {
-		printk(KERN_ERR "Platform device allocation failed\n");
-		return -ENOMEM;
-	}
-
-	platform_set_drvdata(sdp3430_snd_device, &snd_soc_sdp3430);
+	card->dev = &pdev->dev;
 
 	/* Set TWL4030 GPIO6 as EXTMUTE signal */
 	twl_i2c_read_u8(TWL4030_MODULE_INTBR, &pin_mux,
@@ -249,30 +240,51 @@ static int __init sdp3430_soc_init(void)
 	twl_i2c_write_u8(TWL4030_MODULE_INTBR, pin_mux,
 						TWL4030_INTBR_PMBR1);
 
-	ret = platform_device_add(sdp3430_snd_device);
-	if (ret)
-		goto err1;
+	ret = snd_soc_register_card(card);
+	if (ret) {
+		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
+			ret);
+		return ret;
+	}
 
 	return 0;
+}
 
-err1:
-	printk(KERN_ERR "Unable to add platform device\n");
-	platform_device_put(sdp3430_snd_device);
+static int __devexit sdp3430_soc_remove(struct platform_device *pdev)
+{
+	struct snd_soc_card *card = platform_get_drvdata(pdev);
 
-	return ret;
+	snd_soc_jack_free_gpios(&hs_jack, ARRAY_SIZE(hs_jack_gpios),
+				hs_jack_gpios);
+
+	snd_soc_unregister_card(card);
+
+	return 0;
+}
+
+static struct platform_driver sdp3430_driver = {
+	.driver = {
+		.name = "sdp3430-soc-audio",
+		.owner = THIS_MODULE,
+	},
+
+	.probe = sdp3430_soc_probe,
+	.remove = __devexit_p(sdp3430_soc_remove),
+};
+
+static int __init sdp3430_soc_init(void)
+{
+	return platform_driver_register(&sdp3430_driver);
 }
 module_init(sdp3430_soc_init);
 
 static void __exit sdp3430_soc_exit(void)
 {
-	snd_soc_jack_free_gpios(&hs_jack, ARRAY_SIZE(hs_jack_gpios),
-				hs_jack_gpios);
-
-	platform_device_unregister(sdp3430_snd_device);
+	platform_driver_unregister(&sdp3430_driver);
 }
 module_exit(sdp3430_soc_exit);
 
 MODULE_AUTHOR("Misael Lopez Cruz <x0052729@ti.com>");
 MODULE_DESCRIPTION("ALSA SoC SDP3430");
 MODULE_LICENSE("GPL");
-
+MODULE_ALIAS("platform:sdp3430-soc-audio");
