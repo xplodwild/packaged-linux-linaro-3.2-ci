@@ -391,14 +391,12 @@ static struct snd_soc_card rx51_sound_card = {
 	.num_configs = ARRAY_SIZE(rx51_codec_conf),
 };
 
-static struct platform_device *rx51_snd_device;
-
-static int __init rx51_soc_init(void)
+static int __devinit rx51_soc_probe(struct platform_device *pdev)
 {
+	struct snd_soc_card *card = &rx51_sound_card;
 	int err;
 
-	if (!machine_is_nokia_rx51())
-		return -ENODEV;
+	card->dev = &pdev->dev;
 
 	err = gpio_request_one(RX51_TVOUT_SEL_GPIO,
 			       GPIOF_DIR_OUT | GPIOF_INIT_LOW, "tvout_sel");
@@ -409,21 +407,14 @@ static int __init rx51_soc_init(void)
 	if (err)
 		goto err_gpio_eci_sw;
 
-	rx51_snd_device = platform_device_alloc("soc-audio", -1);
-	if (!rx51_snd_device) {
-		err = -ENOMEM;
+	err = snd_soc_register_card(card);
+	if (err) {
+		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
+			err);
 		goto err1;
 	}
 
-	platform_set_drvdata(rx51_snd_device, &rx51_sound_card);
-
-	err = platform_device_add(rx51_snd_device);
-	if (err)
-		goto err2;
-
 	return 0;
-err2:
-	platform_device_put(rx51_snd_device);
 err1:
 	gpio_free(RX51_ECI_SW_GPIO);
 err_gpio_eci_sw:
@@ -433,19 +424,44 @@ err_gpio_tvout_sel:
 	return err;
 }
 
-static void __exit rx51_soc_exit(void)
+static int __devexit rx51_soc_remove(struct platform_device *pdev)
 {
+	struct snd_soc_card *card = platform_get_drvdata(pdev);
+
 	snd_soc_jack_free_gpios(&rx51_av_jack, ARRAY_SIZE(rx51_av_jack_gpios),
 				rx51_av_jack_gpios);
 
-	platform_device_unregister(rx51_snd_device);
+	snd_soc_unregister_card(card);
+
 	gpio_free(RX51_ECI_SW_GPIO);
 	gpio_free(RX51_TVOUT_SEL_GPIO);
+
+	return 0;
 }
 
+static struct platform_driver rx51_driver = {
+	.driver = {
+		.name = "rx51-soc-audio",
+		.owner = THIS_MODULE,
+	},
+
+	.probe = rx51_soc_probe,
+	.remove = __devexit_p(rx51_soc_remove),
+};
+
+static int __init rx51_soc_init(void)
+{
+	return platform_driver_register(&rx51_driver);
+}
 module_init(rx51_soc_init);
+
+static void __exit rx51_soc_exit(void)
+{
+	platform_driver_unregister(&rx51_driver);
+}
 module_exit(rx51_soc_exit);
 
 MODULE_AUTHOR("Nokia Corporation");
 MODULE_DESCRIPTION("ALSA SoC Nokia RX-51");
 MODULE_LICENSE("GPL");
+MODULE_ALIAS("platform:rx51-soc-audio");
