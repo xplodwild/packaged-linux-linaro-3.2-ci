@@ -76,46 +76,57 @@ static struct snd_soc_card snd_soc_card_overo = {
 	.num_links = 1,
 };
 
-static struct platform_device *overo_snd_device;
+static int __devinit overo_soc_probe(struct platform_device *pdev)
+{
+	struct snd_soc_card *card = &snd_soc_card_overo;
+	int ret;
+
+	pr_info("overo SoC init\n");
+
+	card->dev = &pdev->dev;
+
+	ret = snd_soc_register_card(card);
+	if (ret) {
+		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
+			ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+static int __devexit overo_soc_remove(struct platform_device *pdev)
+{
+	struct snd_soc_card *card = platform_get_drvdata(pdev);
+
+	snd_soc_unregister_card(card);
+
+	return 0;
+}
+
+static struct platform_driver overo_driver = {
+	.driver = {
+		.name = "overo-soc-audio",
+		.owner = THIS_MODULE,
+	},
+
+	.probe = overo_soc_probe,
+	.remove = __devexit_p(overo_soc_remove),
+};
 
 static int __init overo_soc_init(void)
 {
-	int ret;
-
-	if (!(machine_is_overo() || machine_is_cm_t35())) {
-		pr_debug("Incomatible machine!\n");
-		return -ENODEV;
-	}
-	printk(KERN_INFO "overo SoC init\n");
-
-	overo_snd_device = platform_device_alloc("soc-audio", -1);
-	if (!overo_snd_device) {
-		printk(KERN_ERR "Platform device allocation failed\n");
-		return -ENOMEM;
-	}
-
-	platform_set_drvdata(overo_snd_device, &snd_soc_card_overo);
-
-	ret = platform_device_add(overo_snd_device);
-	if (ret)
-		goto err1;
-
-	return 0;
-
-err1:
-	printk(KERN_ERR "Unable to add platform device\n");
-	platform_device_put(overo_snd_device);
-
-	return ret;
+	return platform_driver_register(&overo_driver);
 }
 module_init(overo_soc_init);
 
 static void __exit overo_soc_exit(void)
 {
-	platform_device_unregister(overo_snd_device);
+	platform_driver_unregister(&overo_driver);
 }
 module_exit(overo_soc_exit);
 
 MODULE_AUTHOR("Steve Sakoman <steve@sakoman.com>");
 MODULE_DESCRIPTION("ALSA SoC overo");
 MODULE_LICENSE("GPL");
+MODULE_ALIAS("platform:overo-soc-audio");
