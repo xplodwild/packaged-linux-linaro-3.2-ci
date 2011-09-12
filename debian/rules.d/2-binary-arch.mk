@@ -34,7 +34,7 @@ prepare-%: $(stampdir)/stamp-prepare-%
 $(stampdir)/stamp-build-%: target_flavour = $*
 $(stampdir)/stamp-build-%: $(stampdir)/stamp-prepare-%
 	@echo "Building $*..."
-	$(build_cd) $(kmake) $(build_O) $(conc_level) $(build_image) modules
+	$(build_cd) $(kmake) $(build_O) $(conc_level) $(build_image) modules dtbs
 	@touch $@
 
 # Install the finished build
@@ -71,6 +71,14 @@ endif
 		$(pkgdir)/boot/abi-$(abi_release)-$*
 	install -m600 $(builddir)/build-$*/System.map \
 		$(pkgdir)/boot/System.map-$(abi_release)-$*
+
+	mkdir -p $(pkgdir)/boot/dt-$(abi_release)-$*/
+	install -m644 -D $(builddir)/build-$*/arch/$(build_arch)/boot/*.dtb \
+		$(pkgdir)/boot/dt-$(abi_release)-$*/ || \
+		echo "No dtb files for this platform" > \
+		$(pkgdir)/boot/dt-$(abi_release)-$*/README
+
+
 ifeq ($(no_dumpfile),)
 	makedumpfile -g $(pkgdir)/boot/vmcoreinfo-$(abi_release)-$* \
 		-x $(builddir)/build-$*/vmlinux
