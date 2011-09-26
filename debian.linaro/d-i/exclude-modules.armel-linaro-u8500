@@ -1,5 +1,4 @@
 block-modules
-crypto-modules
 fat-modules
 fs-core-modules
 fs-secondary-modules
