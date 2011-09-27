@@ -4,6 +4,7 @@
 (unknown) crypto/aes_generic 0x3dc916b6	crypto_fl_tab
 (unknown) crypto/aes_generic 0x40d46b21	crypto_ft_tab
 (unknown) crypto/aes_generic 0x71dc9998	crypto_il_tab
+(unknown) crypto/twofish_common 0xd9313032	twofish_setkey
 (unknown) drivers/char/hw_random/rng-core 0x624a6406	hwrng_register
 (unknown) drivers/char/hw_random/rng-core 0x7267db00	hwrng_unregister
 (unknown) drivers/hwmon/hwmon 0x9ba57fe8	hwmon_device_register
