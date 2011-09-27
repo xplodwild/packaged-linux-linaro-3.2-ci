@@ -7,9 +7,11 @@ ath
 b43
 b43legacy
 bcm203x
+blowfish
 bluetooth
 bpa10x
 carl9170
+cbc
 cfg80211
 ecb
 eeprom_93cx6
@@ -51,6 +53,8 @@ rtl8192cu
 rtl8192se
 rtlwifi
 scsi_wait_scan
+serpent
+sha256_generic
 snd
 snd-aaci
 snd-ac97-codec
@@ -66,6 +70,8 @@ snd-usb-audio
 snd-usbmidi-lib
 spi_bitbang
 ssb
+twofish_common
+twofish_generic
 usb8xxx
 wl1251
 wl1251_sdio
