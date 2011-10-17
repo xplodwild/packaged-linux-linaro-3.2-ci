@@ -8,8 +8,20 @@ linux-linaro (3.1.0-1.1) UNRELEASED; urgency=low
 
   * Start 3.1 based precise release 
     linux-linaro 3.0.0-1007.11 rebased on
-    snapshot of Ubuntu precise as of 12Oct2011 rebased on
-    snapshot of linux-linaro-3.1 as of 12Oct2011
+    snapshot of Ubuntu precise as of 17Oct2011:
+      commit 9e08413f4f7115fe1c4233d544ab8379c51cd4c6
+      Author: Andiry Xu <andiry.xu@amd.com>
+      Date:   Fri Sep 23 14:19:54 2011 -0700
+
+      UBUNTU: SAUCE: (drop during 3.2 merge) xHCI: AMD isoc link TRB chain bit quirk
+
+    rebased on
+    snapshot of linux-linaro-3.1 as of 17Oct2011
+      commit 30ad23712ecc22a4d026a4b6af21ac65c303325e
+      Author: Arnd Bergmann <arnd@arndb.de>
+      Date:   Sat Oct 8 17:07:50 2011 +0200
+
+      ARM: kprobes: work around build errors
 
  -- John Rigby <john.rigby@linaro.org>  Wed, 12 Oct 2011 17:37:14 -0600
 
