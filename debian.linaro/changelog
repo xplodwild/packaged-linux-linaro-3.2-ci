@@ -4,7 +4,20 @@ linux-linaro (3.1.0-2.3) UNRELEASED; urgency=low
   CHANGELOG: Use the printchanges target to see the curent changes.
   CHANGELOG: Use the insertchanges target to create the final log.
 
- -- John Rigby <john.rigby@linaro.org>  Wed, 02 Nov 2011 15:05:01 -0400
+  * rebase on new ubuntu:
+    commit 6f36ca1e3af7296ddd58504abd6772e8e374bf03
+    Author: Leann Ogasawara <leann.ogasawara@canonical.com>
+    Date:   Fri Oct 28 12:49:09 2011 -0700
+
+    UBUNTU: Ubuntu-3.1.0-2.3
+    
+    Signed-off-by: Leann Ogasawara <leann.ogasawara@canonical.com>
+
+    and linux-linaro-3.1 2011.11-0
+
+    commit f6b252b6b92671d2633008408c06d35c26e55ecf
+
+ -- John Rigby <john.rigby@linaro.org>  Wed, 16 Nov 2011 15:31:59 -0700
 
 linux-linaro (3.1.0-2.2) precise; urgency=low
 
