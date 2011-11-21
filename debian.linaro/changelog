@@ -5,6 +5,8 @@ linux-linaro (3.1.0-4.4) UNRELEASED; urgency=low
   CHANGELOG: Use the insertchanges target to create the final log.
 
   * Bump abi
+  * CONFIG: Make sound configs builtin in vexpress
+    LP: #862626
 
  -- John Rigby <john.rigby@linaro.org>  Mon, 21 Nov 2011 08:29:27 -0700
 
