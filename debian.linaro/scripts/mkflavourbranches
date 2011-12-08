@@ -7,6 +7,9 @@ source_pkg_name=$(dpkg-parsechangelog -l${DEBIAN}/changelog|grep Source|sed 's/^
 source_pkg_version=$(dpkg-parsechangelog -l${DEBIAN}/changelog|grep Version|sed 's/^.*Version: //')
 common_flavour_prefix=linaro
 
+git_tag_cmd="git tag -s"
+test -n "$NO_TAG_SIGN" && git_tag_cmd="git tag "
+
 
 function fail {
     echo $1
@@ -84,7 +87,8 @@ END
         fi
         git commit -s -m "LINARO: Linaro-${source_pkg_version} $flavour only"
         tagname="Linaro-${source_pkg_version}-${flavour}-only"
-        git tag -f -s -m "$tagname" $tagname HEAD
+	tagname=$(echo $tagname | sed 's/~/-/g')
+        $git_tag_cmd -f -m "$tagname" $tagname HEAD
 
         git push $remote_push -f HEAD:$flavour-only
         git push $remote_push -f $tagname
@@ -112,7 +116,8 @@ setup_working_branch $working_branch
 
 git push $remote_push -f $working_branch:master
 tagname="Linaro-${source_pkg_version}"
-git tag -f -s -m "$tagname" $tagname HEAD
+tagname=$(echo $tagname | sed 's/~/-/g')
+$git_tag_cmd -f -m "$tagname" $tagname HEAD
 git push $remote_push -f $tagname
 
 do_flavour_branches
