@@ -1,0 +1,670 @@
+commit a44208a5a5882969b9a476127ee35d2585bddc5b
+Author: Seth Forshee <seth.forshee@canonical.com>
+
+    UBUNTU: SAUCE: (drop after 3.1) usb_storage: Don't freeze in usb-stor-scan
+
+diff --git a/drivers/usb/storage/usb.c b/drivers/usb/storage/usb.c
+index 0ca0958..c325e69 100644
+--- a/drivers/usb/storage/usb.c
++++ b/drivers/usb/storage/usb.c
+@@ -831,12 +831,22 @@ static int usb_stor_scan_thread(void * __us)
+ 
+ 	dev_dbg(dev, "device found\n");
+ 
+-	set_freezable();
+-	/* Wait for the timeout to expire or for a disconnect */
++	set_freezable_with_signal();
++	/*
++	 * Wait for the timeout to expire or for a disconnect
++	 *
++	 * We can't freeze in this thread or we risk causing khubd to
++	 * fail to freeze, but we can't be non-freezable either. Nor can
++	 * khubd freeze while waiting for scanning to complete as it may
++	 * hold the device lock, causing a hang when suspending devices.
++	 * So we request a fake signal when freezing and use
++	 * interruptible sleep to kick us out of our wait early when
++	 * freezing happens.
++	 */
+ 	if (delay_use > 0) {
+ 		dev_dbg(dev, "waiting for device to settle "
+ 				"before scanning\n");
+-		wait_event_freezable_timeout(us->delay_wait,
++		wait_event_interruptible_timeout(us->delay_wait,
+ 				test_bit(US_FLIDX_DONT_SCAN, &us->dflags),
+ 				delay_use * HZ);
+ 	}
+commit 70f8fee9aa414f5aa5e0b69220943ebe1e1393f1
+Author: Stefan Bader <stefan.bader@canonical.com>
+
+    UBUNTU: SAUCE: xen: Do not use pv spinlocks on HVM
+
+diff --git a/arch/x86/xen/enlighten.c b/arch/x86/xen/enlighten.c
+index ded13eb..c536017 100644
+--- a/arch/x86/xen/enlighten.c
++++ b/arch/x86/xen/enlighten.c
+@@ -1378,8 +1378,10 @@ static int __cpuinit xen_hvm_cpu_notify(struct notifier_block *self,
+ 	switch (action) {
+ 	case CPU_UP_PREPARE:
+ 		per_cpu(xen_vcpu, cpu) = &HYPERVISOR_shared_info->vcpu_info[cpu];
++		/* FIXME: Disable until a final solution is found (lp#838026)
+ 		if (xen_have_vector_callback)
+ 			xen_init_lock_cpu(cpu);
++		*/
+ 		break;
+ 	default:
+ 		break;
+diff --git a/arch/x86/xen/smp.c b/arch/x86/xen/smp.c
+index 041d4fe..ad59bf9 100644
+--- a/arch/x86/xen/smp.c
++++ b/arch/x86/xen/smp.c
+@@ -531,7 +531,9 @@ static void __init xen_hvm_smp_prepare_cpus(unsigned int max_cpus)
+ 	native_smp_prepare_cpus(max_cpus);
+ 	WARN_ON(xen_smp_intr_init(0));
+ 
++	/* FIXME: Disable until final solution is found (lp#838026)
+ 	xen_init_lock_cpu(0);
++	*/
+ }
+ 
+ static int __cpuinit xen_hvm_cpu_up(unsigned int cpu)
+commit 170f6e328e59b04e4920b0230428c97641cc5a32
+Author: Joshua V. Dillon <jvdillon@gmail.com>
+
+    UBUNTU: SAUCE: HID: add support for MacBookAir4,2 keyboard.
+
+diff --git a/drivers/hid/hid-apple.c b/drivers/hid/hid-apple.c
+index 18b3bc6..12db5e1 100644
+--- a/drivers/hid/hid-apple.c
++++ b/drivers/hid/hid-apple.c
+@@ -183,6 +183,9 @@ static int hidinput_apple_event(struct hid_device *hid, struct input_dev *input,
+ 		if (hid->product >= USB_DEVICE_ID_APPLE_WELLSPRING4_ANSI &&
+ 				hid->product <= USB_DEVICE_ID_APPLE_WELLSPRING4A_JIS)
+ 			table = macbookair_fn_keys;
++		else if (hid->product >= USB_DEVICE_ID_APPLE_WELLSPRING6_ANSI &&
++				hid->product <= USB_DEVICE_ID_APPLE_WELLSPRING6_JIS)
++			table = macbookair_fn_keys;
+ 		else if (hid->product < 0x21d || hid->product >= 0x300)
+ 			table = powerbook_fn_keys;
+ 		else
+@@ -493,6 +496,12 @@ static const struct hid_device_id apple_devices[] = {
+ 		.driver_data = APPLE_HAS_FN | APPLE_ISO_KEYBOARD },
+ 	{ HID_USB_DEVICE(USB_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_WELLSPRING5_JIS),
+ 		.driver_data = APPLE_HAS_FN | APPLE_RDESC_JIS },
++	{ HID_USB_DEVICE(USB_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_WELLSPRING6_ANSI),
++		.driver_data = APPLE_HAS_FN },
++	{ HID_USB_DEVICE(USB_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_WELLSPRING6_ISO),
++		.driver_data = APPLE_HAS_FN | APPLE_ISO_KEYBOARD },
++	{ HID_USB_DEVICE(USB_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_WELLSPRING6_JIS),
++		.driver_data = APPLE_HAS_FN | APPLE_RDESC_JIS },
+ 	{ HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_ALU_WIRELESS_2009_ANSI),
+ 		.driver_data = APPLE_NUMLOCK_EMULATION | APPLE_HAS_FN },
+ 	{ HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_ALU_WIRELESS_2009_ISO),
+diff --git a/drivers/hid/hid-ids.h b/drivers/hid/hid-ids.h
+index 7484e1b..2064a2c 100644
+--- a/drivers/hid/hid-ids.h
++++ b/drivers/hid/hid-ids.h
+@@ -109,6 +109,9 @@
+ #define USB_DEVICE_ID_APPLE_WELLSPRING5_ANSI	0x0245
+ #define USB_DEVICE_ID_APPLE_WELLSPRING5_ISO	0x0246
+ #define USB_DEVICE_ID_APPLE_WELLSPRING5_JIS	0x0247
++#define USB_DEVICE_ID_APPLE_WELLSPRING6_ANSI   0x024c
++#define USB_DEVICE_ID_APPLE_WELLSPRING6_ISO    0x024d
++#define USB_DEVICE_ID_APPLE_WELLSPRING6_JIS    0x024e
+ #define USB_DEVICE_ID_APPLE_ALU_REVB_ANSI	0x024f
+ #define USB_DEVICE_ID_APPLE_ALU_REVB_ISO	0x0250
+ #define USB_DEVICE_ID_APPLE_ALU_REVB_JIS	0x0251
+commit b60cbe116ba22edbcbd4dea39872123cbe2c9a98
+Author: Jiri Kosina <jkosina@suse.cz>
+
+    UBUNTU: SAUCE: HID: add MacBookAir4, 2 to hid_have_special_driver[]
+
+diff --git a/drivers/hid/hid-core.c b/drivers/hid/hid-core.c
+index 242353d..b7e2d3e 100644
+--- a/drivers/hid/hid-core.c
++++ b/drivers/hid/hid-core.c
+@@ -1340,6 +1340,9 @@ static const struct hid_device_id hid_have_special_driver[] = {
+ 	{ HID_USB_DEVICE(USB_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_WELLSPRING5_ANSI) },
+ 	{ HID_USB_DEVICE(USB_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_WELLSPRING5_ISO) },
+ 	{ HID_USB_DEVICE(USB_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_WELLSPRING5_JIS) },
++	{ HID_USB_DEVICE(USB_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_WELLSPRING6_ANSI) },
++	{ HID_USB_DEVICE(USB_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_WELLSPRING6_ISO) },
++	{ HID_USB_DEVICE(USB_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_WELLSPRING6_JIS) },
+ 	{ HID_USB_DEVICE(USB_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_ALU_REVB_ANSI) },
+ 	{ HID_USB_DEVICE(USB_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_ALU_REVB_ISO) },
+ 	{ HID_USB_DEVICE(USB_VENDOR_ID_APPLE, USB_DEVICE_ID_APPLE_ALU_REVB_JIS) },
+commit 5bc67b20c247cffe35e950990dc60ce9797f2733
+Author: Ming Lei <ming.lei@canonical.com>
+
+    UBUNTU: SAUCE: ata_piix: make DVD Drive recognisable on systems with Intel Sandybridge chipsets(v2)
+
+diff --git a/drivers/ata/ata_piix.c b/drivers/ata/ata_piix.c
+index 43107e9..cc431d6 100644
+--- a/drivers/ata/ata_piix.c
++++ b/drivers/ata/ata_piix.c
+@@ -113,6 +113,8 @@ enum {
+ 	PIIX_PATA_FLAGS		= ATA_FLAG_SLAVE_POSS,
+ 	PIIX_SATA_FLAGS		= ATA_FLAG_SATA | PIIX_FLAG_CHECKINTR,
+ 
++	PIIX_FLAG_PIO16		= (1 << 30), /*support 16bit PIO only*/
++
+ 	PIIX_80C_PRI		= (1 << 5) | (1 << 4),
+ 	PIIX_80C_SEC		= (1 << 7) | (1 << 6),
+ 
+@@ -147,6 +149,7 @@ enum piix_controller_ids {
+ 	ich8m_apple_sata,	/* locks up on second port enable */
+ 	tolapai_sata,
+ 	piix_pata_vmw,			/* PIIX4 for VMware, spurious DMA_ERR */
++	ich8_sata_snb,
+ };
+ 
+ struct piix_map_db {
+@@ -177,6 +180,7 @@ static int piix_sidpr_scr_write(struct ata_link *link,
+ static int piix_sidpr_set_lpm(struct ata_link *link, enum ata_lpm_policy policy,
+ 			      unsigned hints);
+ static bool piix_irq_check(struct ata_port *ap);
++static int piix_port_start(struct ata_port *ap);
+ #ifdef CONFIG_PM
+ static int piix_pci_device_suspend(struct pci_dev *pdev, pm_message_t mesg);
+ static int piix_pci_device_resume(struct pci_dev *pdev);
+@@ -298,21 +302,21 @@ static const struct pci_device_id piix_pci_tbl[] = {
+ 	/* SATA Controller IDE (PCH) */
+ 	{ 0x8086, 0x3b2e, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich8_sata },
+ 	/* SATA Controller IDE (CPT) */
+-	{ 0x8086, 0x1c00, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich8_sata },
++	{ 0x8086, 0x1c00, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich8_sata_snb },
+ 	/* SATA Controller IDE (CPT) */
+-	{ 0x8086, 0x1c01, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich8_sata },
++	{ 0x8086, 0x1c01, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich8_sata_snb },
+ 	/* SATA Controller IDE (CPT) */
+ 	{ 0x8086, 0x1c08, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich8_2port_sata },
+ 	/* SATA Controller IDE (CPT) */
+ 	{ 0x8086, 0x1c09, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich8_2port_sata },
+ 	/* SATA Controller IDE (PBG) */
+-	{ 0x8086, 0x1d00, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich8_sata },
++	{ 0x8086, 0x1d00, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich8_sata_snb },
+ 	/* SATA Controller IDE (PBG) */
+ 	{ 0x8086, 0x1d08, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich8_2port_sata },
+ 	/* SATA Controller IDE (Panther Point) */
+-	{ 0x8086, 0x1e00, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich8_sata },
++	{ 0x8086, 0x1e00, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich8_sata_snb },
+ 	/* SATA Controller IDE (Panther Point) */
+-	{ 0x8086, 0x1e01, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich8_sata },
++	{ 0x8086, 0x1e01, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich8_sata_snb },
+ 	/* SATA Controller IDE (Panther Point) */
+ 	{ 0x8086, 0x1e08, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich8_2port_sata },
+ 	/* SATA Controller IDE (Panther Point) */
+@@ -338,6 +342,7 @@ static struct scsi_host_template piix_sht = {
+ static struct ata_port_operations piix_sata_ops = {
+ 	.inherits		= &ata_bmdma32_port_ops,
+ 	.sff_irq_check		= piix_irq_check,
++	.port_start		= piix_port_start,
+ };
+ 
+ static struct ata_port_operations piix_pata_ops = {
+@@ -478,6 +483,7 @@ static const struct piix_map_db *piix_map_db_table[] = {
+ 	[ich8_2port_sata]	= &ich8_2port_map_db,
+ 	[ich8m_apple_sata]	= &ich8m_apple_map_db,
+ 	[tolapai_sata]		= &tolapai_map_db,
++	[ich8_sata_snb]		= &ich8_map_db,
+ };
+ 
+ static struct ata_port_info piix_port_info[] = {
+@@ -606,6 +612,19 @@ static struct ata_port_info piix_port_info[] = {
+ 		.port_ops	= &piix_vmw_ops,
+ 	},
+ 
++	/*
++	 * some Sandybridge chipsets have broken 32 mode up to now,
++	 * see https://bugzilla.kernel.org/show_bug.cgi?id=40592
++	 */
++	[ich8_sata_snb] =
++	{
++		.flags		= PIIX_SATA_FLAGS | PIIX_FLAG_SIDPR | PIIX_FLAG_PIO16,
++		.pio_mask	= ATA_PIO4,
++		.mwdma_mask	= ATA_MWDMA2,
++		.udma_mask	= ATA_UDMA6,
++		.port_ops	= &piix_sata_ops,
++	},
++
+ };
+ 
+ static struct pci_bits piix_enable_bits[] = {
+@@ -649,6 +668,14 @@ static const struct ich_laptop ich_laptop[] = {
+ 	{ 0, }
+ };
+ 
++static int piix_port_start(struct ata_port *ap)
++{
++	if (!(ap->flags & PIIX_FLAG_PIO16))
++		ap->pflags |= ATA_PFLAG_PIO32 | ATA_PFLAG_PIO32CHANGE;
++
++	return ata_bmdma_port_start(ap);
++}
++
+ /**
+  *	ich_pata_cable_detect - Probe host controller cable detect info
+  *	@ap: Port for which cable detect info is desired
+commit 6d5ac7875bd36b296aa4a54447af0e7ed191bc8a
+Author: Tim Gardner <tim.gardner@canonical.com>
+
+    UBUNTU: SAUCE: usb/core/devio.c: Check for printer class specific request
+
+diff --git a/drivers/usb/core/devio.c b/drivers/usb/core/devio.c
+index 37518df..1d73709 100644
+--- a/drivers/usb/core/devio.c
++++ b/drivers/usb/core/devio.c
+@@ -607,9 +607,10 @@ static int findintfep(struct usb_device *dev, unsigned int ep)
+ }
+ 
+ static int check_ctrlrecip(struct dev_state *ps, unsigned int requesttype,
+-			   unsigned int index)
++			   unsigned int request, unsigned int index)
+ {
+ 	int ret = 0;
++	struct usb_host_interface *alt_setting;
+ 
+ 	if (ps->dev->state != USB_STATE_UNAUTHENTICATED
+ 	 && ps->dev->state != USB_STATE_ADDRESS
+@@ -618,6 +619,19 @@ static int check_ctrlrecip(struct dev_state *ps, unsigned int requesttype,
+ 	if (USB_TYPE_VENDOR == (USB_TYPE_MASK & requesttype))
+ 		return 0;
+ 
++	/*
++	 * check for the special corner case 'get_device_id' in the printer
++	 * class specification, where wIndex is (interface << 8 | altsetting)
++	 * instead of just interface
++	 */
++	if (requesttype == 0xa1 && request == 0) {
++		alt_setting = usb_find_alt_setting(ps->dev->actconfig,
++						   index >> 8, index & 0xff);
++		if (alt_setting
++		 && alt_setting->desc.bInterfaceClass == USB_CLASS_PRINTER)
++			index >>= 8;
++	}
++
+ 	index &= 0xff;
+ 	switch (requesttype & USB_RECIP_MASK) {
+ 	case USB_RECIP_ENDPOINT:
+@@ -770,7 +784,8 @@ static int proc_control(struct dev_state *ps, void __user *arg)
+ 
+ 	if (copy_from_user(&ctrl, arg, sizeof(ctrl)))
+ 		return -EFAULT;
+-	ret = check_ctrlrecip(ps, ctrl.bRequestType, ctrl.wIndex);
++	ret = check_ctrlrecip(ps, ctrl.bRequestType, ctrl.bRequest,
++			      ctrl.wIndex);
+ 	if (ret)
+ 		return ret;
+ 	wLength = ctrl.wLength;		/* To suppress 64k PAGE_SIZE warning */
+@@ -1100,7 +1115,7 @@ static int proc_do_submiturb(struct dev_state *ps, struct usbdevfs_urb *uurb,
+ 			kfree(dr);
+ 			return -EINVAL;
+ 		}
+-		ret = check_ctrlrecip(ps, dr->bRequestType,
++		ret = check_ctrlrecip(ps, dr->bRequestType, dr->bRequest,
+ 				      le16_to_cpup(&dr->wIndex));
+ 		if (ret) {
+ 			kfree(dr);
+commit 70fff419715dc3221686fc36a605fe1f65f85ead
+Author: Andiry Xu <andiry.xu@amd.com>
+
+    UBUNTU: SAUCE: (drop during 3.2 merge) xHCI: AMD isoc link TRB chain bit quirk
+
+diff --git a/drivers/usb/host/xhci-mem.c b/drivers/usb/host/xhci-mem.c
+index d446886..f84a095 100644
+--- a/drivers/usb/host/xhci-mem.c
++++ b/drivers/usb/host/xhci-mem.c
+@@ -81,7 +81,7 @@ static void xhci_segment_free(struct xhci_hcd *xhci, struct xhci_segment *seg)
+  * related flags, such as End TRB, Toggle Cycle, and no snoop.
+  */
+ static void xhci_link_segments(struct xhci_hcd *xhci, struct xhci_segment *prev,
+-		struct xhci_segment *next, bool link_trbs)
++		struct xhci_segment *next, bool link_trbs, bool isoc)
+ {
+ 	u32 val;
+ 
+@@ -97,7 +97,9 @@ static void xhci_link_segments(struct xhci_hcd *xhci, struct xhci_segment *prev,
+ 		val &= ~TRB_TYPE_BITMASK;
+ 		val |= TRB_TYPE(TRB_LINK);
+ 		/* Always set the chain bit with 0.95 hardware */
+-		if (xhci_link_trb_quirk(xhci))
++		/* Set chain bit for isoc rings on AMD 0.96 host */
++		if (xhci_link_trb_quirk(xhci) ||
++				(isoc && (xhci->quirks & XHCI_AMD_0x96_HOST)))
+ 			val |= TRB_CHAIN;
+ 		prev->trbs[TRBS_PER_SEGMENT-1].link.control = cpu_to_le32(val);
+ 	}
+@@ -152,7 +154,7 @@ static void xhci_initialize_ring_info(struct xhci_ring *ring)
+  * See section 4.9.1 and figures 15 and 16.
+  */
+ static struct xhci_ring *xhci_ring_alloc(struct xhci_hcd *xhci,
+-		unsigned int num_segs, bool link_trbs, gfp_t flags)
++		unsigned int num_segs, bool link_trbs, bool isoc, gfp_t flags)
+ {
+ 	struct xhci_ring	*ring;
+ 	struct xhci_segment	*prev;
+@@ -178,12 +180,12 @@ static struct xhci_ring *xhci_ring_alloc(struct xhci_hcd *xhci,
+ 		next = xhci_segment_alloc(xhci, flags);
+ 		if (!next)
+ 			goto fail;
+-		xhci_link_segments(xhci, prev, next, link_trbs);
++		xhci_link_segments(xhci, prev, next, link_trbs, isoc);
+ 
+ 		prev = next;
+ 		num_segs--;
+ 	}
+-	xhci_link_segments(xhci, prev, ring->first_seg, link_trbs);
++	xhci_link_segments(xhci, prev, ring->first_seg, link_trbs, isoc);
+ 
+ 	if (link_trbs) {
+ 		/* See section 4.9.2.1 and 6.4.4.1 */
+@@ -229,14 +231,14 @@ void xhci_free_or_cache_endpoint_ring(struct xhci_hcd *xhci,
+  * pointers to the beginning of the ring.
+  */
+ static void xhci_reinit_cached_ring(struct xhci_hcd *xhci,
+-		struct xhci_ring *ring)
++		struct xhci_ring *ring, bool isoc)
+ {
+ 	struct xhci_segment	*seg = ring->first_seg;
+ 	do {
+ 		memset(seg->trbs, 0,
+ 				sizeof(union xhci_trb)*TRBS_PER_SEGMENT);
+ 		/* All endpoint rings have link TRBs */
+-		xhci_link_segments(xhci, seg, seg->next, 1);
++		xhci_link_segments(xhci, seg, seg->next, 1, isoc);
+ 		seg = seg->next;
+ 	} while (seg != ring->first_seg);
+ 	xhci_initialize_ring_info(ring);
+@@ -540,7 +542,7 @@ struct xhci_stream_info *xhci_alloc_stream_info(struct xhci_hcd *xhci,
+ 	 */
+ 	for (cur_stream = 1; cur_stream < num_streams; cur_stream++) {
+ 		stream_info->stream_rings[cur_stream] =
+-			xhci_ring_alloc(xhci, 1, true, mem_flags);
++			xhci_ring_alloc(xhci, 1, true, false, mem_flags);
+ 		cur_ring = stream_info->stream_rings[cur_stream];
+ 		if (!cur_ring)
+ 			goto cleanup_rings;
+@@ -765,7 +767,7 @@ int xhci_alloc_virt_device(struct xhci_hcd *xhci, int slot_id,
+ 	}
+ 
+ 	/* Allocate endpoint 0 ring */
+-	dev->eps[0].ring = xhci_ring_alloc(xhci, 1, true, flags);
++	dev->eps[0].ring = xhci_ring_alloc(xhci, 1, true, false, flags);
+ 	if (!dev->eps[0].ring)
+ 		goto fail;
+ 
+@@ -1175,10 +1177,10 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
+ 	 */
+ 	if (usb_endpoint_xfer_isoc(&ep->desc))
+ 		virt_dev->eps[ep_index].new_ring =
+-			xhci_ring_alloc(xhci, 8, true, mem_flags);
++			xhci_ring_alloc(xhci, 8, true, true, mem_flags);
+ 	else
+ 		virt_dev->eps[ep_index].new_ring =
+-			xhci_ring_alloc(xhci, 1, true, mem_flags);
++			xhci_ring_alloc(xhci, 1, true, false, mem_flags);
+ 	if (!virt_dev->eps[ep_index].new_ring) {
+ 		/* Attempt to use the ring cache */
+ 		if (virt_dev->num_rings_cached == 0)
+@@ -1187,7 +1189,8 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
+ 			virt_dev->ring_cache[virt_dev->num_rings_cached];
+ 		virt_dev->ring_cache[virt_dev->num_rings_cached] = NULL;
+ 		virt_dev->num_rings_cached--;
+-		xhci_reinit_cached_ring(xhci, virt_dev->eps[ep_index].new_ring);
++		xhci_reinit_cached_ring(xhci, virt_dev->eps[ep_index].new_ring,
++			usb_endpoint_xfer_isoc(&ep->desc) ? true : false);
+ 	}
+ 	virt_dev->eps[ep_index].skip = false;
+ 	ep_ring = virt_dev->eps[ep_index].new_ring;
+@@ -2001,7 +2004,7 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
+ 		goto fail;
+ 
+ 	/* Set up the command ring to have one segments for now. */
+-	xhci->cmd_ring = xhci_ring_alloc(xhci, 1, true, flags);
++	xhci->cmd_ring = xhci_ring_alloc(xhci, 1, true, false, flags);
+ 	if (!xhci->cmd_ring)
+ 		goto fail;
+ 	xhci_dbg(xhci, "Allocated command ring at %p\n", xhci->cmd_ring);
+@@ -2032,7 +2035,8 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
+ 	 * the event ring segment table (ERST).  Section 4.9.3.
+ 	 */
+ 	xhci_dbg(xhci, "// Allocating event ring\n");
+-	xhci->event_ring = xhci_ring_alloc(xhci, ERST_NUM_SEGS, false, flags);
++	xhci->event_ring = xhci_ring_alloc(xhci, ERST_NUM_SEGS, false, false,
++						flags);
+ 	if (!xhci->event_ring)
+ 		goto fail;
+ 	if (xhci_check_trb_in_td_math(xhci, flags) < 0)
+diff --git a/drivers/usb/host/xhci-pci.c b/drivers/usb/host/xhci-pci.c
+index cb16de2..50e7156 100644
+--- a/drivers/usb/host/xhci-pci.c
++++ b/drivers/usb/host/xhci-pci.c
+@@ -128,6 +128,9 @@ static int xhci_pci_setup(struct usb_hcd *hcd)
+ 	if (pdev->vendor == PCI_VENDOR_ID_NEC)
+ 		xhci->quirks |= XHCI_NEC_HOST;
+ 
++	if (pdev->vendor == PCI_VENDOR_ID_AMD && xhci->hci_version == 0x96)
++		xhci->quirks |= XHCI_AMD_0x96_HOST;
++
+ 	/* AMD PLL quirk */
+ 	if (pdev->vendor == PCI_VENDOR_ID_AMD && usb_amd_find_chipset_info())
+ 		xhci->quirks |= XHCI_AMD_PLL_FIX;
+diff --git a/drivers/usb/host/xhci-ring.c b/drivers/usb/host/xhci-ring.c
+index 952e2de..40023db 100644
+--- a/drivers/usb/host/xhci-ring.c
++++ b/drivers/usb/host/xhci-ring.c
+@@ -185,7 +185,7 @@ static void inc_deq(struct xhci_hcd *xhci, struct xhci_ring *ring, bool consumer
+  *			prepare_transfer()?
+  */
+ static void inc_enq(struct xhci_hcd *xhci, struct xhci_ring *ring,
+-		bool consumer, bool more_trbs_coming)
++		bool consumer, bool more_trbs_coming, bool isoc)
+ {
+ 	u32 chain;
+ 	union xhci_trb *next;
+@@ -212,11 +212,13 @@ static void inc_enq(struct xhci_hcd *xhci, struct xhci_ring *ring,
+ 				if (!chain && !more_trbs_coming)
+ 					break;
+ 
+-				/* If we're not dealing with 0.95 hardware,
++				/* If we're not dealing with 0.95 hardware or
++				 * isoc rings on AMD 0.96 host,
+ 				 * carry over the chain bit of the previous TRB
+ 				 * (which may mean the chain bit is cleared).
+ 				 */
+-				if (!xhci_link_trb_quirk(xhci)) {
++				if (!(isoc && (xhci->quirks & XHCI_AMD_0x96_HOST))
++						&& !xhci_link_trb_quirk(xhci)) {
+ 					next->link.control &=
+ 						cpu_to_le32(~TRB_CHAIN);
+ 					next->link.control |=
+@@ -2409,7 +2411,7 @@ irqreturn_t xhci_msi_irq(int irq, struct usb_hcd *hcd)
+  *			prepare_transfer()?
+  */
+ static void queue_trb(struct xhci_hcd *xhci, struct xhci_ring *ring,
+-		bool consumer, bool more_trbs_coming,
++		bool consumer, bool more_trbs_coming, bool isoc,
+ 		u32 field1, u32 field2, u32 field3, u32 field4)
+ {
+ 	struct xhci_generic_trb *trb;
+@@ -2419,7 +2421,7 @@ static void queue_trb(struct xhci_hcd *xhci, struct xhci_ring *ring,
+ 	trb->field[1] = cpu_to_le32(field2);
+ 	trb->field[2] = cpu_to_le32(field3);
+ 	trb->field[3] = cpu_to_le32(field4);
+-	inc_enq(xhci, ring, consumer, more_trbs_coming);
++	inc_enq(xhci, ring, consumer, more_trbs_coming, isoc);
+ }
+ 
+ /*
+@@ -2427,7 +2429,7 @@ static void queue_trb(struct xhci_hcd *xhci, struct xhci_ring *ring,
+  * FIXME allocate segments if the ring is full.
+  */
+ static int prepare_ring(struct xhci_hcd *xhci, struct xhci_ring *ep_ring,
+-		u32 ep_state, unsigned int num_trbs, gfp_t mem_flags)
++		u32 ep_state, unsigned int num_trbs, bool isoc, gfp_t mem_flags)
+ {
+ 	/* Make sure the endpoint has been added to xHC schedule */
+ 	switch (ep_state) {
+@@ -2469,10 +2471,11 @@ static int prepare_ring(struct xhci_hcd *xhci, struct xhci_ring *ep_ring,
+ 		next = ring->enqueue;
+ 
+ 		while (last_trb(xhci, ring, ring->enq_seg, next)) {
+-			/* If we're not dealing with 0.95 hardware,
+-			 * clear the chain bit.
++			/* If we're not dealing with 0.95 hardware or isoc rings
++			 * on AMD 0.96 host, clear the chain bit.
+ 			 */
+-			if (!xhci_link_trb_quirk(xhci))
++			if (!xhci_link_trb_quirk(xhci) && !(isoc &&
++					(xhci->quirks & XHCI_AMD_0x96_HOST)))
+ 				next->link.control &= cpu_to_le32(~TRB_CHAIN);
+ 			else
+ 				next->link.control |= cpu_to_le32(TRB_CHAIN);
+@@ -2505,6 +2508,7 @@ static int prepare_transfer(struct xhci_hcd *xhci,
+ 		unsigned int num_trbs,
+ 		struct urb *urb,
+ 		unsigned int td_index,
++		bool isoc,
+ 		gfp_t mem_flags)
+ {
+ 	int ret;
+@@ -2522,7 +2526,7 @@ static int prepare_transfer(struct xhci_hcd *xhci,
+ 
+ 	ret = prepare_ring(xhci, ep_ring,
+ 			   le32_to_cpu(ep_ctx->ep_info) & EP_STATE_MASK,
+-			   num_trbs, mem_flags);
++			   num_trbs, isoc, mem_flags);
+ 	if (ret)
+ 		return ret;
+ 
+@@ -2745,7 +2749,7 @@ static int queue_bulk_sg_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
+ 
+ 	trb_buff_len = prepare_transfer(xhci, xhci->devs[slot_id],
+ 			ep_index, urb->stream_id,
+-			num_trbs, urb, 0, mem_flags);
++			num_trbs, urb, 0, false, mem_flags);
+ 	if (trb_buff_len < 0)
+ 		return trb_buff_len;
+ 
+@@ -2840,7 +2844,7 @@ static int queue_bulk_sg_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
+ 			more_trbs_coming = true;
+ 		else
+ 			more_trbs_coming = false;
+-		queue_trb(xhci, ep_ring, false, more_trbs_coming,
++		queue_trb(xhci, ep_ring, false, more_trbs_coming, false,
+ 				lower_32_bits(addr),
+ 				upper_32_bits(addr),
+ 				length_field,
+@@ -2931,7 +2935,7 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
+ 
+ 	ret = prepare_transfer(xhci, xhci->devs[slot_id],
+ 			ep_index, urb->stream_id,
+-			num_trbs, urb, 0, mem_flags);
++			num_trbs, urb, 0, false, mem_flags);
+ 	if (ret < 0)
+ 		return ret;
+ 
+@@ -3003,7 +3007,7 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
+ 			more_trbs_coming = true;
+ 		else
+ 			more_trbs_coming = false;
+-		queue_trb(xhci, ep_ring, false, more_trbs_coming,
++		queue_trb(xhci, ep_ring, false, more_trbs_coming, false,
+ 				lower_32_bits(addr),
+ 				upper_32_bits(addr),
+ 				length_field,
+@@ -3063,7 +3067,7 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
+ 		num_trbs++;
+ 	ret = prepare_transfer(xhci, xhci->devs[slot_id],
+ 			ep_index, urb->stream_id,
+-			num_trbs, urb, 0, mem_flags);
++			num_trbs, urb, 0, false, mem_flags);
+ 	if (ret < 0)
+ 		return ret;
+ 
+@@ -3096,7 +3100,7 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
+ 		}
+ 	}
+ 
+-	queue_trb(xhci, ep_ring, false, true,
++	queue_trb(xhci, ep_ring, false, true, false,
+ 		  setup->bRequestType | setup->bRequest << 8 | le16_to_cpu(setup->wValue) << 16,
+ 		  le16_to_cpu(setup->wIndex) | le16_to_cpu(setup->wLength) << 16,
+ 		  TRB_LEN(8) | TRB_INTR_TARGET(0),
+@@ -3116,7 +3120,7 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
+ 	if (urb->transfer_buffer_length > 0) {
+ 		if (setup->bRequestType & USB_DIR_IN)
+ 			field |= TRB_DIR_IN;
+-		queue_trb(xhci, ep_ring, false, true,
++		queue_trb(xhci, ep_ring, false, true, false,
+ 				lower_32_bits(urb->transfer_dma),
+ 				upper_32_bits(urb->transfer_dma),
+ 				length_field,
+@@ -3132,7 +3136,7 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
+ 		field = 0;
+ 	else
+ 		field = TRB_DIR_IN;
+-	queue_trb(xhci, ep_ring, false, false,
++	queue_trb(xhci, ep_ring, false, false, false,
+ 			0,
+ 			0,
+ 			TRB_INTR_TARGET(0),
+@@ -3281,7 +3285,8 @@ static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
+ 		trbs_per_td = count_isoc_trbs_needed(xhci, urb, i);
+ 
+ 		ret = prepare_transfer(xhci, xhci->devs[slot_id], ep_index,
+-				urb->stream_id, trbs_per_td, urb, i, mem_flags);
++				urb->stream_id, trbs_per_td, urb, i, true,
++				mem_flags);
+ 		if (ret < 0) {
+ 			if (i == 0)
+ 				return ret;
+@@ -3351,7 +3356,7 @@ static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
+ 				remainder |
+ 				TRB_INTR_TARGET(0);
+ 
+-			queue_trb(xhci, ep_ring, false, more_trbs_coming,
++			queue_trb(xhci, ep_ring, false, more_trbs_coming, true,
+ 				lower_32_bits(addr),
+ 				upper_32_bits(addr),
+ 				length_field,
+@@ -3433,7 +3438,7 @@ int xhci_queue_isoc_tx_prepare(struct xhci_hcd *xhci, gfp_t mem_flags,
+ 	 * Do not insert any td of the urb to the ring if the check failed.
+ 	 */
+ 	ret = prepare_ring(xhci, ep_ring, le32_to_cpu(ep_ctx->ep_info) & EP_STATE_MASK,
+-			   num_trbs, mem_flags);
++			   num_trbs, true, mem_flags);
+ 	if (ret)
+ 		return ret;
+ 
+@@ -3492,7 +3497,7 @@ static int queue_command(struct xhci_hcd *xhci, u32 field1, u32 field2,
+ 		reserved_trbs++;
+ 
+ 	ret = prepare_ring(xhci, xhci->cmd_ring, EP_STATE_RUNNING,
+-			reserved_trbs, GFP_ATOMIC);
++			reserved_trbs, false, GFP_ATOMIC);
+ 	if (ret < 0) {
+ 		xhci_err(xhci, "ERR: No room for command on command ring\n");
+ 		if (command_must_succeed)
+@@ -3500,8 +3505,8 @@ static int queue_command(struct xhci_hcd *xhci, u32 field1, u32 field2,
+ 					"unfailable commands failed.\n");
+ 		return ret;
+ 	}
+-	queue_trb(xhci, xhci->cmd_ring, false, false, field1, field2, field3,
+-			field4 | xhci->cmd_ring->cycle_state);
++	queue_trb(xhci, xhci->cmd_ring, false, false, false, field1, field2,
++			field3,	field4 | xhci->cmd_ring->cycle_state);
+ 	return 0;
+ }
+ 
+diff --git a/drivers/usb/host/xhci.h b/drivers/usb/host/xhci.h
+index cae8e23..8450bfd 100644
+--- a/drivers/usb/host/xhci.h
++++ b/drivers/usb/host/xhci.h
+@@ -1318,6 +1318,7 @@ struct xhci_hcd {
+ #define XHCI_EP_LIMIT_QUIRK	(1 << 5)
+ #define XHCI_BROKEN_MSI		(1 << 6)
+ #define XHCI_RESET_ON_RESUME	(1 << 7)
++#define XHCI_AMD_0x96_HOST	(1 << 9)
+ 	unsigned int		num_active_eps;
+ 	unsigned int		limit_active_eps;
+ 	/* There are two roothubs to keep track of bus suspend info for */
