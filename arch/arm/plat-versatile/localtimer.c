@@ -11,6 +11,8 @@
 #include <linux/init.h>
 #include <linux/smp.h>
 #include <linux/clockchips.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
 
 #include <asm/smp_twd.h>
 #include <asm/localtimer.h>
@@ -21,6 +23,16 @@
  */
 int __cpuinit local_timer_setup(struct clock_event_device *evt)
 {
+#if defined(CONFIG_OF)
+	if (!twd_base) {
+		struct device_node *np = of_find_compatible_node(NULL,
+				NULL, "arm,smp-twd");
+
+		twd_base = of_iomap(np, 0);
+		if (!twd_base)
+			return -ENXIO;
+	}
+#endif
 	evt->irq = IRQ_LOCALTIMER;
 	twd_timer_setup(evt);
 	return 0;
