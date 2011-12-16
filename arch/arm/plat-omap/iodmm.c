@@ -40,8 +40,7 @@
 
 #include <plat/iommu.h>
 #include <plat/dmm_user.h>
-
-#include "iopgtable.h"
+#include <plat/iopgtable.h>
 
 #ifndef CONFIG_DMM_DMA_API
 /* Hack hack code to handle MM buffers */
@@ -50,7 +49,7 @@ int temp_user_dma_op(unsigned long start, unsigned long end, int op)
 
 	struct mm_struct *mm = current->active_mm;
 	void (*inner_op)(const void *, const void *);
-	void (*outer_op)(unsigned long, unsigned long);
+	void (*outer_op)(phys_addr_t, phys_addr_t);
 
 	switch (op) {
 	case 1:
@@ -122,7 +121,7 @@ int temp_user_dma_op(unsigned long start, unsigned long end, int op)
 }
 #endif
 
-static inline struct gen_pool *get_pool_handle(struct iovmm_device *iovmm_obj,
+static inline struct gen_pool *get_pool_handle(struct omap_iovmm_device *iovmm_obj,
 								int pool_id)
 {
 	struct iovmm_pool *pool;
@@ -160,7 +159,7 @@ static u32 __user_va2_pa(struct mm_struct *mm, u32 address)
 }
 
 /* remember mapping information */
-static struct dmm_map_object *add_mapping_info(struct iodmm_struct *obj,
+static struct dmm_map_object *add_mapping_info(struct omap_iodmm_struct *obj,
 		struct gen_pool *gen_pool, u32 va, u32 da, u32 size)
 {
 	struct dmm_map_object *map_obj;
@@ -211,7 +210,7 @@ static int match_exact_map_obj(struct dmm_map_object *map_obj,
 	return res;
 }
 
-static void remove_mapping_information(struct iodmm_struct *obj,
+static void remove_mapping_information(struct omap_iodmm_struct *obj,
 						u32 da, u32 size)
 {
 	struct dmm_map_object *map_obj;
@@ -272,7 +271,7 @@ static int match_containing_map_obj(struct dmm_map_object *map_obj,
  * virtual address
  */
 static struct dmm_map_object *find_containing_mapping(
-				struct iodmm_struct *obj,
+				struct omap_iodmm_struct *obj,
 				u32 va, u32 da, bool check_va,
 				u32 size)
 {
@@ -464,7 +463,7 @@ out:
 }
 #endif
 
-int proc_begin_dma(struct iodmm_struct *obj, const void __user *args)
+int proc_begin_dma(struct omap_iodmm_struct *obj, const void __user *args)
 {
 	int status = 0;
 	struct dmm_dma_info dma_info;
@@ -509,7 +508,7 @@ err_out:
 	return status;
 }
 
-int proc_end_dma(struct iodmm_struct *obj,  const void __user *args)
+int proc_end_dma(struct omap_iodmm_struct *obj,  const void __user *args)
 {
 	int status = 0;
 	struct dmm_dma_info dma_info;
@@ -564,7 +563,7 @@ err_out:
  * This function unmaps a user space buffer into DSP virtual address.
  *
  */
-static int user_to_device_unmap(struct iommu *mmu, u32 da, unsigned size)
+static int user_to_device_unmap(struct omap_iommu *mmu, u32 da, unsigned size)
 {
 	unsigned total = size;
 	unsigned start = da;
@@ -584,7 +583,7 @@ static int user_to_device_unmap(struct iommu *mmu, u32 da, unsigned size)
 	return 0;
 }
 
-static int __user_un_map(struct iodmm_struct *obj, u32 map_addr)
+static int __user_un_map(struct omap_iodmm_struct *obj, u32 map_addr)
 {
 	int status = 0;
 	u32 va_align;
@@ -642,7 +641,7 @@ err:
  *
  * removes user's dmm buffer mapping
  **/
-int user_un_map(struct iodmm_struct *obj, const void __user *args)
+int user_un_map(struct omap_iodmm_struct *obj, const void __user *args)
 {
 	int status = 0;
 	u32 map_addr;
@@ -668,7 +667,7 @@ int user_un_map(struct iodmm_struct *obj, const void __user *args)
  * This function maps a user space buffer into DSP virtual address.
  *
  */
-static int user_to_device_map(struct iommu *mmu, u32 uva, u32 da, u32 size,
+static int user_to_device_map(struct omap_iommu *mmu, u32 uva, u32 da, u32 size,
 						struct page **usr_pgs)
 
 {
@@ -714,7 +713,7 @@ static int user_to_device_map(struct iommu *mmu, u32 uva, u32 da, u32 size,
 						MMU_RAM_ENDIAN_LITTLE |
 						MMU_RAM_ELSZ_32);
 
-			iopgtable_store_entry(mmu, &tlb_entry);
+			omap_iopgtable_store_entry(mmu, &tlb_entry);
 			if (usr_pgs)
 				usr_pgs[pg_i] = mapped_page;
 			da += PAGE_SIZE;
@@ -748,7 +747,7 @@ static int user_to_device_map(struct iommu *mmu, u32 uva, u32 da, u32 size,
  * This function maps a user space buffer into DSP virtual address.
  *
  */
-static int phys_to_device_map(struct iodmm_struct *obj,
+static int phys_to_device_map(struct omap_iodmm_struct *obj,
 				int pool_id, u32 *mapped_addr,
 				u32 pa, size_t bytes, u32 flags)
 {
@@ -804,7 +803,8 @@ static int phys_to_device_map(struct iodmm_struct *obj,
 						size_flag[i] |
 						MMU_RAM_ENDIAN_LITTLE |
 						MMU_RAM_ELSZ_32);
-				iopgtable_store_entry(obj->iovmm->iommu, &e);
+				pr_err("phys_to_device_map: calling omap_iopgtable_store_entry\n");
+				omap_iopgtable_store_entry(obj->iovmm->iommu, &e);
 				bytes -= pg_size[i];
 				da += pg_size[i];
 				pa += pg_size[i];
@@ -828,11 +828,11 @@ exit:
  *
  * Maps given user buffer to Device address
  **/
-int dmm_user(struct iodmm_struct *obj, void __user *args)
+int dmm_user(struct omap_iodmm_struct *obj, void __user *args)
 {
 	struct gen_pool *gen_pool;
 	struct dmm_map_object *dmm_obj;
-	struct iovmm_device *iovmm_obj = obj->iovmm;
+	struct omap_iovmm_device *iovmm_obj = obj->iovmm;
 	u32 addr_align, da_align, size_align, tmp_addr;
 	int err = 0;
 	int i, num_of_pages;
@@ -944,7 +944,7 @@ int dmm_user(struct iodmm_struct *obj, void __user *args)
 						MMU_CAM_PGSZ_4K |
 						MMU_RAM_ENDIAN_LITTLE |
 						MMU_RAM_ELSZ_32);
-			iopgtable_store_entry(obj->iovmm->iommu, &e);
+			omap_iopgtable_store_entry(obj->iovmm->iommu, &e);
 			da_align += PAGE_SIZE;
 			addr_align += PAGE_SIZE;
 			dmm_obj->pages[i] = pg;
@@ -979,8 +979,10 @@ int dmm_user(struct iodmm_struct *obj, void __user *args)
 #endif
 
 exit:
-	copy_to_user((void __user *)args, &map_info,
+	i = copy_to_user((void __user *)args, &map_info,
 					sizeof(struct dmm_map_info));
+	if (!err && i)
+		err = i;
 	mutex_unlock(&iovmm_obj->dmm_map_lock);
 	up_read(&mm->mmap_sem);
 	return err;
@@ -992,7 +994,7 @@ exit:
  *
  * removes user's dmm resources
  **/
-void user_remove_resources(struct iodmm_struct *obj)
+void user_remove_resources(struct omap_iodmm_struct *obj)
 {
 
 	struct dmm_map_object *temp_map, *map_obj;
@@ -1013,10 +1015,10 @@ void user_remove_resources(struct iodmm_struct *obj)
  * @obj:	target dmm object
  * @args	pool information
  **/
-int omap_create_dmm_pool(struct iodmm_struct *obj, const void __user *args)
+int omap_create_dmm_pool(struct omap_iodmm_struct *obj, const void __user *args)
 {
 	struct iovmm_pool *pool;
-	struct iovmm_device *iovmm = obj->iovmm;
+	struct omap_iovmm_device *iovmm = obj->iovmm;
 	struct iovmm_pool_info pool_info;
 
 	if (copy_from_user(&pool_info, args, sizeof(struct iovmm_pool_info)))
@@ -1047,10 +1049,10 @@ int omap_create_dmm_pool(struct iodmm_struct *obj, const void __user *args)
  * omap_delete_dmm_pool - Delete DMM pools
  * @obj:	target dmm object
  **/
-int omap_delete_dmm_pools(struct iodmm_struct *obj)
+int omap_delete_dmm_pools(struct omap_iodmm_struct *obj)
 {
 	struct iovmm_pool *pool;
-	struct iovmm_device *iovmm_obj = obj->iovmm;
+	struct omap_iovmm_device *iovmm_obj = obj->iovmm;
 	struct list_head *_pool, *_next_pool;
 
 	list_for_each_safe(_pool, _next_pool, &iovmm_obj->mmap_pool) {
@@ -1070,7 +1072,7 @@ int omap_delete_dmm_pools(struct iodmm_struct *obj)
  *
  * Registering to MMU fault event notification
  **/
-int register_mmufault(struct iodmm_struct *obj, const void __user *args)
+int register_mmufault(struct omap_iodmm_struct *obj, const void __user *args)
 {
 	int fd;
 	struct iommu_event_ntfy *fd_reg;
@@ -1096,7 +1098,7 @@ int register_mmufault(struct iodmm_struct *obj, const void __user *args)
  *
  * Unregister to MMU fault event notification
  **/
-int unregister_mmufault(struct iodmm_struct *obj, const void __user *args)
+int unregister_mmufault(struct omap_iodmm_struct *obj, const void __user *args)
 {
 	int fd;
 	struct iommu_event_ntfy *fd_reg, *temp_reg;
@@ -1127,7 +1129,7 @@ int unregister_mmufault(struct iodmm_struct *obj, const void __user *args)
  * This function should be used only during remote Processor
  * boot time.
  **/
-int program_tlb_entry(struct iodmm_struct *obj, const void __user *args)
+int program_tlb_entry(struct omap_iodmm_struct *obj, const void __user *args)
 {
 	struct iotlb_entry e;
 	int ret;

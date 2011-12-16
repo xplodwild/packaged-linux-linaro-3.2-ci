@@ -28,8 +28,8 @@
 #define DMM_IOCMEMINV		_IO(DMM_IOC_MAGIC, 5)
 #define DMM_IOCCREATEPOOL	_IO(DMM_IOC_MAGIC, 6)
 #define DMM_IOCDELETEPOOL	_IO(DMM_IOC_MAGIC, 7)
-#define IOMMU_IOCEVENTREG	_IO(DMM_IOC_MAGIC, 10)
-#define IOMMU_IOCEVENTUNREG	_IO(DMM_IOC_MAGIC, 11)
+//#define IOMMU_IOCEVENTREG	_IO(DMM_IOC_MAGIC, 10)
+//#define IOMMU_IOCEVENTUNREG	_IO(DMM_IOC_MAGIC, 11)
 
 #define DMM_DA_ANON	0x1
 #define DMM_DA_PHYS	0x2
@@ -85,16 +85,9 @@ struct dmm_map_object {
 	struct device_dma_map_info	dma_info;
 };
 
-struct iodmm_struct {
-	struct iovmm_device	*iovmm;
-	struct list_head	map_list;
-	u32			pool_id;
-	pid_t			tgid;
-};
-
-struct iovmm_device {
+struct omap_iovmm_device {
 	/* iommu object which this belongs to */
-	struct iommu		*iommu;
+	struct omap_iommu		*iommu;
 	const char		*name;
 	/* List of memory pool it manages */
 	struct list_head        mmap_pool;
@@ -104,24 +97,32 @@ struct iovmm_device {
 	int			refcount;
 };
 
+struct omap_iodmm_struct {
+        struct omap_iovmm_device        *iovmm;
+        struct list_head        map_list;
+        u32                     pool_id;
+        pid_t                   tgid;
+};
+
+
 /* user dmm functions */
-int dmm_user(struct iodmm_struct *obj,  void __user *args);
+int dmm_user(struct omap_iodmm_struct *obj,  void __user *args);
 
-void user_remove_resources(struct iodmm_struct *obj);
+void user_remove_resources(struct omap_iodmm_struct *obj);
 
-int user_un_map(struct iodmm_struct *obj, const void __user *args);
+int user_un_map(struct omap_iodmm_struct *obj, const void __user *args);
 
-int proc_begin_dma(struct iodmm_struct *obj, const void __user *args);
+int proc_begin_dma(struct omap_iodmm_struct *obj, const void __user *args);
 
-int proc_end_dma(struct iodmm_struct *obj, const void __user *args);
+int proc_end_dma(struct omap_iodmm_struct *obj, const void __user *args);
 
-int omap_create_dmm_pool(struct iodmm_struct *obj, const void __user *args);
+int omap_create_dmm_pool(struct omap_iodmm_struct *obj, const void __user *args);
 
-int omap_delete_dmm_pools(struct iodmm_struct *obj);
+int omap_delete_dmm_pools(struct omap_iodmm_struct *obj);
 
-int program_tlb_entry(struct iodmm_struct *obj, const void __user *args);
+int program_tlb_entry(struct omap_iodmm_struct *obj, const void __user *args);
 
-int register_mmufault(struct iodmm_struct *obj, const void __user *args);
+int register_mmufault(struct omap_iodmm_struct *obj, const void __user *args);
 
-int unregister_mmufault(struct iodmm_struct *obj, const void __user *args);
+int unregister_mmufault(struct omap_iodmm_struct *obj, const void __user *args);
 #endif

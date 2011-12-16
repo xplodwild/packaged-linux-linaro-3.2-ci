@@ -45,9 +45,9 @@ static dev_t		omap_dmm_dev;
 static long omap_dmm_ioctl(struct file *filp,
 				unsigned int cmd, unsigned long args)
 {
-	struct iodmm_struct *obj;
+	struct omap_iodmm_struct *obj;
 	int ret = 0;
-	obj = (struct iodmm_struct *)filp->private_data;
+	obj = (struct omap_iodmm_struct *)filp->private_data;
 
 	if (!obj)
 		return -EINVAL;
@@ -101,18 +101,22 @@ static long omap_dmm_ioctl(struct file *filp,
 
 static int omap_dmm_open(struct inode *inode, struct file *filp)
 {
-	struct iodmm_struct *iodmm;
-	struct iovmm_device *obj;
+	struct omap_iodmm_struct *iodmm;
+	struct omap_iovmm_device *obj;
 
-	obj = container_of(inode->i_cdev, struct iovmm_device, cdev);
+	obj = container_of(inode->i_cdev, struct omap_iovmm_device, cdev);
 	obj->refcount++;
 
-	iodmm = kzalloc(sizeof(struct iodmm_struct), GFP_KERNEL);
+	iodmm = kzalloc(sizeof(struct omap_iodmm_struct), GFP_KERNEL);
 	INIT_LIST_HEAD(&iodmm->map_list);
 
 	iodmm->iovmm = obj;
 	iodmm->tgid = current->tgid;
 	obj->iommu = iommu_get(obj->name);
+	if (IS_ERR(obj->iommu)) {
+		pr_err("omap_dmm_open: failed to find %s\n", obj->name);
+		return (int)obj->iommu;
+	}
 	filp->private_data = iodmm;
 
 	return 0;
@@ -121,7 +125,7 @@ static int omap_dmm_open(struct inode *inode, struct file *filp)
 static int omap_dmm_release(struct inode *inode, struct file *filp)
 {
 	int status = 0;
-	struct iodmm_struct *obj;
+	struct omap_iodmm_struct *obj;
 
 	if (!filp->private_data) {
 		status = -EIO;
@@ -175,12 +179,12 @@ static int __devinit omap_dmm_probe(struct platform_device *pdev)
 	int err = -ENODEV;
 	int major, minor;
 	struct device *tmpdev;
-	struct iommu_platform_data *pdata =
-			(struct iommu_platform_data *)pdev->dev.platform_data;
+	struct omap_iommu_platform_data *pdata =
+			(struct omap_iommu_platform_data *)pdev->dev.platform_data;
 	int ret = 0;
-	struct iovmm_device *obj;
+	struct omap_iovmm_device *obj;
 
-	obj = kzalloc(sizeof(struct iovmm_device), GFP_KERNEL);
+	obj = kzalloc(sizeof(struct omap_iovmm_device), GFP_KERNEL);
 
 	major = MAJOR(omap_dmm_dev);
 	minor = atomic_read(&num_of_iovmmus);
@@ -226,7 +230,7 @@ err_cdev:
 
 static int __devexit omap_dmm_remove(struct platform_device *pdev)
 {
-	struct iovmm_device *obj = platform_get_drvdata(pdev);
+	struct omap_iovmm_device *obj = platform_get_drvdata(pdev);
 	int major = MAJOR(omap_dmm_dev);
 
 	device_destroy(omap_dmm_class, MKDEV(major, obj->minor));

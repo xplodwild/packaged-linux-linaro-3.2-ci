@@ -47,7 +47,7 @@ struct omap_iommu_domain {
 };
 
 /* accommodate the difference between omap1 and omap2/3 */
-static const struct iommu_functions *arch_iommu;
+static const struct omap_iommu_functions *arch_iommu;
 
 static struct platform_driver omap_iommu_driver;
 static struct kmem_cache *iopte_cachep;
@@ -59,7 +59,7 @@ static struct kmem_cache *iopte_cachep;
  * There are several kind of iommu algorithm(tlb, pagetable) among
  * omap series. This interface installs such an iommu algorighm.
  **/
-int omap_install_iommu_arch(const struct iommu_functions *ops)
+int omap_install_iommu_arch(const struct omap_iommu_functions *ops)
 {
 	if (arch_iommu)
 		return -EBUSY;
@@ -75,7 +75,7 @@ EXPORT_SYMBOL_GPL(omap_install_iommu_arch);
  *
  * This interface uninstalls the iommu algorighm installed previously.
  **/
-void omap_uninstall_iommu_arch(const struct iommu_functions *ops)
+void omap_uninstall_iommu_arch(const struct omap_iommu_functions *ops)
 {
 	if (arch_iommu != ops)
 		pr_err("%s: not your arch\n", __func__);
@@ -122,30 +122,41 @@ EXPORT_SYMBOL_GPL(omap_iommu_restore_ctx);
  **/
 u32 omap_iommu_arch_version(void)
 {
-	return arch_iommu->get_version(obj);
+	return arch_iommu->get_version(NULL);
 }
 EXPORT_SYMBOL_GPL(omap_iommu_arch_version);
 
-static int iommu_enable(struct omap_iommu *obj)
+int iommu_enable(struct omap_iommu *obj)
 {
 	int err;
 
-	if (!obj)
+	if (!obj) {
+		pr_err("iommu_enable: tried to enable NULL iommu\n");
 		return -EINVAL;
+	}
 
-	if (!arch_iommu)
+	if (!arch_iommu) {
+		pr_err("iommu_enable: NULL arch_iommu\n");
 		return -ENODEV;
+	}
 
 	err = arch_iommu->enable(obj);
+	if (err)
+		pr_err("iommu_enable: arch_iommu->enable(obj) returned %d\n", err);
+
 	return err;
 }
 
-static void iommu_disable(struct omap_iommu *obj)
+EXPORT_SYMBOL_GPL(iommu_enable);
+
+void iommu_disable(struct omap_iommu *obj)
 {
 	if (!obj)
 		return;
 	arch_iommu->disable(obj);
 }
+
+EXPORT_SYMBOL_GPL(iommu_disable);
 
 /*
  *	TLB operations
@@ -258,7 +269,7 @@ static struct cr_regs __iotlb_read_cr(struct omap_iommu *obj, int n)
  * @e:		an iommu tlb entry info
  **/
 #ifdef PREFETCH_IOTLB
-static int load_iotlb_entry(struct omap_iommu *obj, struct iotlb_entry *e)
+int load_iotlb_entry(struct omap_iommu *obj, struct iotlb_entry *e)
 {
 	int err = 0;
 	struct iotlb_lock l;
@@ -312,12 +323,14 @@ out:
 
 #else /* !PREFETCH_IOTLB */
 
-static int load_iotlb_entry(struct omap_iommu *obj, struct iotlb_entry *e)
+int load_iotlb_entry(struct omap_iommu *obj, struct iotlb_entry *e)
 {
 	return 0;
 }
 
 #endif /* !PREFETCH_IOTLB */
+
+EXPORT_SYMBOL_GPL(load_iotlb_entry);
 
 static int prefetch_iotlb_entry(struct omap_iommu *obj, struct iotlb_entry *e)
 {
@@ -335,6 +348,10 @@ static void flush_iotlb_page(struct omap_iommu *obj, u32 da)
 {
 	int i;
 	struct cr_regs cr;
+
+	pr_err("flush_iotlb_page: obj=%p da=0x%x\n", obj, da);
+
+	WARN_ON(1);
 
 	for_each_iotlb_cr(obj, obj->nr_tlb_entries, i, cr) {
 		u32 start;
@@ -361,7 +378,7 @@ static void flush_iotlb_page(struct omap_iommu *obj, u32 da)
  * flush_iotlb_all - Clear all iommu tlb entries
  * @obj:	target iommu
  **/
-static void flush_iotlb_all(struct omap_iommu *obj)
+void flush_iotlb_all(struct omap_iommu *obj)
 {
 	struct iotlb_lock l;
 
@@ -381,7 +398,7 @@ EXPORT_SYMBOL_GPL(flush_iotlb_all);
  * exclusively with locked TLB entries and receive notifications
  * for TLB miss then call this function to disable TWL.
  */
-void iommu_set_twl(struct iommu *obj, bool on)
+void iommu_set_twl(struct omap_iommu *obj, bool on)
 {
 	arch_iommu->set_twl(obj, on);
 }
@@ -392,7 +409,7 @@ EXPORT_SYMBOL_GPL(iommu_set_twl);
  * @obj:	target iommu
  *
  */
-u32 iommu_save_tlb_entries(struct iommu *obj)
+u32 iommu_save_tlb_entries(struct omap_iommu *obj)
 {
 	int i;
 	struct cr_regs cr_tmp;
@@ -403,7 +420,7 @@ u32 iommu_save_tlb_entries(struct iommu *obj)
 
 	e = obj->tlbs_e;
 	for_each_iotlb_cr(obj, obj->nr_tlb_entries, i, cr_tmp) {
-		iotlb_cr_to_e(&cr_tmp, e);
+		omap_iotlb_cr_to_e(&cr_tmp, e);
 		dev_dbg(obj->dev, "%s: %08x %08x %d %d %d", __func__, e->da,
 						      e->pa, e->pgsz, e->prsvd,
 						      e->valid);
@@ -423,7 +440,7 @@ error:
  * based on the e->valid value
  *
  */
-u32 iommu_restore_tlb_entries(struct iommu *obj)
+u32 iommu_restore_tlb_entries(struct omap_iommu *obj)
 {
 	int i;
 	int status;
@@ -696,6 +713,9 @@ int omap_iopgtable_store_entry(struct omap_iommu *obj, struct iotlb_entry *e)
 {
 	int err;
 
+	BUG_ON(!obj);
+	BUG_ON(!e);
+
 	flush_iotlb_page(obj, e->da);
 	err = iopgtable_store_entry_core(obj, e);
 	if (!err)
@@ -780,7 +800,7 @@ out:
  * @obj:	target iommu
  * @da:		iommu device virtual address
  **/
-static size_t iopgtable_clear_entry(struct omap_iommu *obj, u32 da)
+size_t iopgtable_clear_entry(struct omap_iommu *obj, u32 da)
 {
 	size_t bytes;
 
@@ -793,6 +813,8 @@ static size_t iopgtable_clear_entry(struct omap_iommu *obj, u32 da)
 
 	return bytes;
 }
+
+EXPORT_SYMBOL_GPL(iopgtable_clear_entry);
 
 static void iopgtable_clear_entry_all(struct omap_iommu *obj)
 {
@@ -823,7 +845,7 @@ static void iopgtable_clear_entry_all(struct omap_iommu *obj)
 }
 EXPORT_SYMBOL_GPL(iopgtable_clear_entry_all);
 
-void eventfd_notification(struct iommu *obj)
+void eventfd_notification(struct omap_iommu *obj)
 {
 	struct iommu_event_ntfy *fd_reg;
 
@@ -831,12 +853,12 @@ void eventfd_notification(struct iommu *obj)
 		eventfd_signal(fd_reg->evt_ctx, 1);
 }
 
-int iommu_notify_event(struct iommu *obj, int event, void *data)
+int iommu_notify_event(struct omap_iommu *obj, int event, void *data)
 {
 	return raw_notifier_call_chain(&obj->notifier, event, data);
 }
 
-int iommu_register_notifier(struct iommu *obj, struct notifier_block *nb)
+int iommu_register_notifier(struct omap_iommu *obj, struct notifier_block *nb)
 {
 	if (!nb)
 		return -EINVAL;
@@ -844,7 +866,7 @@ int iommu_register_notifier(struct iommu *obj, struct notifier_block *nb)
 }
 EXPORT_SYMBOL_GPL(iommu_register_notifier);
 
-int iommu_unregister_notifier(struct iommu *obj, struct notifier_block *nb)
+int iommu_unregister_notifier(struct omap_iommu *obj, struct notifier_block *nb)
 {
 	if (!nb)
 		return -EINVAL;
@@ -1001,10 +1023,8 @@ static void omap_iommu_detach(struct omap_iommu *obj)
 static int __devinit omap_iommu_probe(struct platform_device *pdev)
 {
 	int err = -ENODEV;
-	int irq;
 	struct omap_iommu *obj;
-	struct resource *res;
-	struct iommu_platform_data *pdata = pdev->dev.platform_data;
+	struct omap_iommu_platform_data *pdata = pdev->dev.platform_data;
 
 	obj = kzalloc(sizeof(*obj), GFP_KERNEL);
 	if (!obj)
@@ -1048,9 +1068,8 @@ error:
 
 static int __devexit omap_iommu_remove(struct platform_device *pdev)
 {
-	int irq;
-	struct resource *res;
 	struct omap_iommu *obj = platform_get_drvdata(pdev);
+	struct omap_iommu_platform_data *pdata = pdev->dev.platform_data;
 
 	free_irq(pdata->irq, obj);
 

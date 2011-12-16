@@ -18,20 +18,21 @@
 #include <plat/omap_device.h>
 #include <plat/omap_hwmod.h>
 #include <plat/irqs-44xx.h>
+#include <plat/iopgtable.h>
 
 static struct platform_device **omap_iommu_pdev;
 
-struct iommu_device {
+struct omap_iommu_device {
 	resource_size_t base;
 	int irq;
-	struct iommu_platform_data pdata;
+	struct omap_iommu_platform_data pdata;
 	struct resource res[2];
 };
-static struct iommu_platform_data *devices_data;
+static struct omap_iommu_platform_data *devices_data;
 static int num_iommu_devices;
 
 #ifdef CONFIG_ARCH_OMAP3
-static struct iommu_platform_data omap3_devices_data[] = {
+static struct omap_iommu_platform_data omap3_devices_data[] = {
 	{
 		.name = "isp",
 		.oh_name = "isp",
@@ -67,9 +68,9 @@ struct iommu_platform_data {
 }; 
 */
 
-static struct iommu_platform_data omap4_devices_data[] = {
+static struct omap_iommu_platform_data omap4_devices_data[] = {
 	{
-		.io_base = OMAP4_MMU1_BASE,
+		.io_base = (void *)OMAP4_MMU1_BASE,
 		.irq = OMAP44XX_IRQ_DUCATI_MMU,
 			/* .clk_name = "ipu_fck", */
 		.da_start = 0x0,
@@ -87,12 +88,12 @@ static struct iommu_platform_data omap4_devices_data[] = {
 #define NR_OMAP4_IOMMU_DEVICES ARRAY_SIZE(omap4_devices_data)
 static struct platform_device *omap4_iommu_pdev[NR_OMAP4_IOMMU_DEVICES];
 
-struct device *omap_iommu_get_dev(char *dev_name)
+struct device *omap_iommu_get_dev(const char *dev_name)
 {
 	int i;
 	struct platform_device *pdev;
 	struct device *dev = NULL;
-	struct iommu_platform_data *pdata;
+	struct omap_iommu_platform_data *pdata;
 
 	for (i = 0; i < NR_OMAP4_IOMMU_DEVICES; i++) {
 		pdev = omap_iommu_pdev[i];
@@ -105,6 +106,90 @@ struct device *omap_iommu_get_dev(char *dev_name)
 	return dev;
 }
 EXPORT_SYMBOL(omap_iommu_get_dev);
+
+#if 0
+
+/**                                                                             
+ *  * iommu_get - Get iommu handler                                                
+ *   * @name:       target iommu name                                               
+ *    **/                                                                            
+struct omap_iommu *iommu_get(const char *name)                                       
+{                                                                               
+        int err = -ENOMEM;                                                      
+        struct device *dev;                                                     
+        struct omap_iommu *obj;                                                      
+        int rev;                                                                
+	unsigned long flags;
+
+        dev = omap_find_iommu_device(name);
+        if (!dev) {                                                              
+		pr_err("iommu_get: no dev for %s\n", name);
+                return ERR_PTR(-ENODEV);
+	}                                        
+        obj = to_iommu(dev);                                                    
+
+	spin_lock_irqsave(&obj->iommu_lock, flags);
+
+        if (obj->refcount++ == 0) {                                             
+                err = iommu_enable(obj);                                
+                if (err) {                                                        
+			pr_err("iommu_get: iommu_enable returned %d\n", err);
+                        goto err_enable;
+		}                                        
+                if (!strcmp(obj->name, "ducati")) {                             
+                        rev = GET_OMAP_REVISION();                              
+                        if (rev == 0x0)                                         
+                                iommu_set_twl(obj, false);                      
+                }                                                               
+                                                                                
+                flush_iotlb_all(obj);                                           
+        }                                                                       
+        if (!try_module_get(obj->owner)) {                                        
+		pr_err("iommu_get: try_module_get failed\n");
+                goto err_module;
+	}                                                
+
+	spin_unlock_irqrestore(&obj->iommu_lock, flags);
+        dev_dbg(obj->dev, "%s: %s\n", __func__, obj->name);                     
+
+        return obj;                                                             
+                                                                                
+err_module:                                                                     
+        if (obj->refcount == 1)                                                 
+                iommu_disable(obj);                                             
+err_enable:                                                                     
+        obj->refcount--;
+	spin_unlock_irqrestore(&obj->iommu_lock, flags);
+
+        return ERR_PTR(err);                                                    
+}                                                                               
+EXPORT_SYMBOL_GPL(iommu_get);                                                   
+                                                                                
+/**                                                                             
+ *  * iommu_put - Put back iommu handler                                           
+ *   * @obj:        target iommu                                                    
+ *    **/                                                                            
+void iommu_put(struct omap_iommu *obj)                                               
+{
+	unsigned long flags;
+
+        if (!obj || IS_ERR(obj))                                                
+                return;                                                         
+                                                                                
+	spin_lock_irqsave(&obj->iommu_lock, flags);                                           
+                                                                                
+        if (--obj->refcount == 0)                                               
+                iommu_disable(obj);                                             
+                                                                                
+        module_put(obj->owner);                                                 
+                                                                                
+	spin_unlock_irqrestore(&obj->iommu_lock, flags);
+                                                                                
+        dev_dbg(obj->dev, "%s: %s\n", __func__, obj->name);                     
+}                                                                               
+EXPORT_SYMBOL_GPL(iommu_put);                                                   
+
+#endif
 
 #else
 #define omap4_devices_data	NULL
@@ -149,7 +234,7 @@ static int __init omap_iommu_init(void)
 	ohl_cnt = ARRAY_SIZE(omap_iommu_latency);
 
 	for (i = 0; i < num_iommu_devices; i++) {
-		struct iommu_platform_data *data = &devices_data[i];
+		struct omap_iommu_platform_data *data = &devices_data[i];
 
 		oh = omap_hwmod_lookup(data->oh_name);
 		if (oh == NULL)

@@ -32,9 +32,10 @@
 #include <notify_ioctl.h>
 #include <nameserver.h>
 #ifdef CONFIG_SYSLINK_RECOVERY
-#include <plat/iommu.h>
 #include <plat/remoteproc.h>
 #endif
+
+#include <plat/iommu.h>
 
 #define IPC_NAME		"syslink_ipc"
 #define IPC_MAJOR		0
@@ -76,7 +77,7 @@ static struct work_struct ipc_recovery_work;
 static DECLARE_COMPLETION(ipc_comp);
 static DECLARE_COMPLETION(ipc_open_comp);
 static bool recover;
-static struct iommu *piommu;
+static struct omap_iommu *piommu;
 static struct omap_rproc *prproc_sysm3;
 
 static int ipc_ducati_iommu_notifier_call(struct notifier_block *nb,

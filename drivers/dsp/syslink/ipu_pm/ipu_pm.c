@@ -314,7 +314,7 @@ static struct pm_qos_request_list *pm_qos_handle_2;
 static struct omap_rproc *sys_rproc;
 static struct omap_rproc *app_rproc;
 static struct omap_mbox *ducati_mbox;
-static struct iommu *ducati_iommu;
+static struct omap_iommu *ducati_iommu;
 static bool first_time = 1;
 
 /* BIOS flags states for each core in IPU */
@@ -584,8 +584,8 @@ static int ipu_pm_iommu_notifier_call(struct notifier_block *nb,
 		 * restore IOMMU since it is required the IOMMU
 		 * is up and running for reclaiming MMU entries
 		 */
-		if (ipu_pm_get_state(SYS_M3) & SYS_PROC_DOWN)
-			iommu_restore_ctx(ducati_iommu);
+//		if (ipu_pm_get_state(SYS_M3) & SYS_PROC_DOWN)
+//			iommu_restore_ctx(ducati_iommu);
 		return 0;
 	case IOMMU_FAULT:
 		ipu_pm_recover_schedule();
@@ -2503,10 +2503,10 @@ int ipu_pm_save_ctx(int proc_id)
 			omap_mbox_save_ctx(ducati_mbox);
 		else
 			pr_err("Not able to save mbox");
-		if (ducati_iommu)
-			iommu_save_ctx(ducati_iommu);
-		else
-			pr_err("Not able to save iommu");
+//		if (ducati_iommu)
+//			iommu_save_ctx(ducati_iommu);
+//		else
+//			pr_err("Not able to save iommu");
 	} else
 		goto error;
 
@@ -2592,10 +2592,10 @@ int ipu_pm_restore_ctx(int proc_id)
 			omap_mbox_restore_ctx(ducati_mbox);
 		else
 			pr_err("Not able to restore mbox");
-		if (ducati_iommu)
-			iommu_restore_ctx(ducati_iommu);
-		else
-			pr_err("Not able to restore iommu");
+//		if (ducati_iommu)
+//			iommu_restore_ctx(ducati_iommu);
+//		else
+//			pr_err("Not able to restore iommu");
 
 		pr_info("Wakeup SYSM3\n");
 		retval = rproc_wakeup(sys_rproc);
@@ -2927,8 +2927,8 @@ int ipu_pm_detach(u16 remote_proc_id)
 			 * Restore iommu to allow process's iommu cleanup
 			 * after ipu_pm is shutdown
 			 */
-			if (ipu_pm_get_state(SYS_M3) & SYS_PROC_DOWN)
-				iommu_restore_ctx(ducati_iommu);
+//			if (ipu_pm_get_state(SYS_M3) & SYS_PROC_DOWN)
+//				iommu_restore_ctx(ducati_iommu);
 			iommu_unregister_notifier(ducati_iommu,
 					&ipu_pm_notify_nb_iommu_ducati);
 			pr_debug("releasing ducati_iommu\n");

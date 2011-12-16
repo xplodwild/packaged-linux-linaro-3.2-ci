@@ -94,7 +94,7 @@ static void __iommu_set_twl(struct omap_iommu *obj, bool on)
 	iommu_write_reg(obj, l, MMU_CNTL);
 }
 
-static u32 omap2_get_version(struct iommu *obj)
+static u32 omap2_get_version(struct omap_iommu *obj)
 {
 	return iommu_read_reg(obj, MMU_REVISION);
 }
@@ -105,12 +105,20 @@ static int omap2_iommu_enable(struct omap_iommu *obj)
 	unsigned long timeout;
 	int ret = 0;
 
-	if (!obj->iopgd || !IS_ALIGNED((u32)obj->iopgd,  SZ_16K))
+	if (!obj->iopgd) {
+		pr_err("omap2_iommu_enable: NULL obj->iopgd\n");
 		return -EINVAL;
+	}
+	if (!IS_ALIGNED((u32)obj->iopgd,  SZ_16K)) {
+		pr_err("omap2_iommu_enable: iopgd is not 16K aligned!\n");
+		return -EINVAL;
+	}
 
 	pa = virt_to_phys(obj->iopgd);
-	if (!IS_ALIGNED(pa, SZ_16K))
+	if (!IS_ALIGNED(pa, SZ_16K)) {
+		pr_err("omap2_iommu_enable: virt_to_phys not 16K aligned!\n");
 		return -EINVAL;
+	}
 
 #ifdef CONFIG_OMAP_PM
 	if (!strcmp(obj->name, "ducati")) {
@@ -123,8 +131,10 @@ static int omap2_iommu_enable(struct omap_iommu *obj)
 	}
 #endif
 	ret = omap_device_enable(obj->pdev);
-	if (ret)
+	if (ret) {
+		pr_err("omap2_iommu_enable: omap_device_enable returned %d\n", ret);
 		return ret;
+	}
 
 	iommu_write_reg(obj, MMU_SYS_SOFTRESET, MMU_SYSCONFIG);
 
@@ -336,6 +346,7 @@ out:
 	return p - buf;
 }
 
+#if 0
 static void omap2_iommu_save_ctx(struct omap_iommu *obj)
 {
 	int i;
@@ -361,6 +372,7 @@ static void omap2_iommu_restore_ctx(struct omap_iommu *obj)
 
 	BUG_ON(p[0] != IOMMU_ARCH_VERSION);
 }
+#endif
 
 static void omap2_cr_to_e(struct cr_regs *cr, struct iotlb_entry *e)
 {
@@ -374,7 +386,7 @@ static void omap2_cr_to_e(struct cr_regs *cr, struct iotlb_entry *e)
 	e->mixed	= cr->ram & MMU_RAM_MIXED;
 }
 
-static const struct iommu_functions omap2_iommu_ops = {
+static const struct omap_iommu_functions omap2_iommu_ops = {
 	.get_version	= omap2_get_version,
 
 	.enable		= omap2_iommu_enable,

@@ -14,7 +14,8 @@
 #define __IOMMU_MMAP_H
 
 #include <linux/iommu.h>
-
+#include <linux/dma-direction.h>
+#include <linux/cdev.h>
 
 #define IOVMM_IOC_MAGIC		'V'
 
@@ -31,7 +32,7 @@
 #define IOMMU_IOCEVENTREG	_IO(IOVMM_IOC_MAGIC, 10)
 #define IOMMU_IOCEVENTUNREG	_IO(IOVMM_IOC_MAGIC, 11)
 
-
+#if 0
 struct iovmm_pool {
 	u32			pool_id;
 	u32			da_begin;
@@ -86,7 +87,7 @@ struct dmm_map_object {
 	struct page **pages;
 	struct device_dma_map_info dma_info;
 };
-
+#endif
 struct iodmm_struct {
 	struct iovmm_device     *iovmm;
 	struct list_head	map_list;

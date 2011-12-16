@@ -46,7 +46,7 @@ static struct mutex local_gate;
 
 struct omap_devh_runtime_info {
 	int brd_state;
-	struct iommu *iommu;
+	struct omap_iommu *iommu;
 	struct omap_rproc *rproc;
 };
 
