@@ -134,3 +134,4 @@ obj-$(CONFIG_HYPERV)		+= hv/
 obj-$(CONFIG_PM_DEVFREQ)	+= devfreq/
 
 obj-$(CONFIG_DMM_OMAP)		+= media/
+obj-$(CONFIG_TILER_OMAP)		+= media/
