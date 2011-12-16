@@ -1755,7 +1755,19 @@ int platform_stop_callback(u16 proc_id, void *arg)
 	void *pm_handle;
 
 	handle = (struct platform_object *)&platform_objects[proc_id];
+	if (!handle) {
+		pr_err("platform_stop_callback saw NULL handle\n");
+		return PLATFORM_E_FAIL;
+	}
+
+	if (platform_host_sr_config == NULL) {
+		pr_err("platform_stop_callback platform_host_sr_config "
+						 "is NULL on entry already\n"); 
+		return PLATFORM_E_FAIL;
+	}
+
 	pm_handle = handle->pm_handle;
+
 	/* delete the System manager instance here */
 	for (i = 0;
 		((handle->slave_sr_config != NULL) &&
