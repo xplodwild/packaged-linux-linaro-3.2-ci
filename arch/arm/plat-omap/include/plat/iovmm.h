@@ -9,9 +9,6 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
-#include <linux/device.h>
-#include <linux/cdev.h>
-#include <linux/dma-mapping.h>
 
 #ifndef __IOMMU_MMAP_H
 #define __IOMMU_MMAP_H
@@ -116,10 +113,7 @@ struct iovm_struct {
 	struct list_head	list; /* linked in ascending order */
 	const struct sg_table	*sgt; /* keep 'page' <-> 'da' mapping */
 	void			*va; /* mpu side mapped address */
-	int			minor;
-	struct cdev cdev;
 };
-
 /*
  * IOVMF_FLAGS: attribute for iommu virtual memory area(iovma)
  *
@@ -165,12 +159,6 @@ struct iovm_struct {
 #define IOVMF_LINEAR_MASK	(3 << (2 + IOVMF_SW_SHIFT))
 
 #define IOVMF_DA_FIXED		(1 << (4 + IOVMF_SW_SHIFT))
-#define IOVMF_DA_PHYS           (4 << (4 + IOVMF_SW_SHIFT))
-#define IOVMF_DA_USER           (5 << (4 + IOVMF_SW_SHIFT))
-
-struct iovmm_platform_data {
-	const char *name;
-};
 
 extern struct iovm_struct *omap_find_iovm_area(struct omap_iommu *obj, u32 da);
 extern u32
@@ -197,21 +185,4 @@ extern u32 iommu_kmalloc(struct iommu *obj, u32 da, size_t bytes,
 extern void iommu_kfree(struct iommu *obj, u32 da);
 
 extern void *da_to_va(struct iommu *obj, u32 da);
-/* user dmm functions */
-extern int dmm_user(struct iodmm_struct *obj, u32 pool_id, u32 *da,
-					u32 va, size_t bytes, u32 flags);
-extern struct dmm_map_object *add_mapping_info(struct iodmm_struct *obj,
-		struct gen_pool *gen_pool, u32 va, u32 da, u32 size);
-extern int device_flush_memory(struct iodmm_struct *obj, void *pva,
-					u32 ul_size, u32 ul_flags);
-extern int device_invalidate_memory(struct iodmm_struct *obj, void *pva,
-								u32 size);
-extern void user_remove_resources(struct iodmm_struct *obj);
-extern int user_un_map(struct iodmm_struct *obj, u32 map_addr);
-extern int proc_begin_dma(struct iodmm_struct *obj, void *pva, u32 ul_size,
-					enum dma_data_direction dir);
-extern int proc_end_dma(struct iodmm_struct *obj, void *pva, u32 ul_size,
-					enum dma_data_direction dir);
-
-
 #endif /* __IOMMU_MMAP_H */
