@@ -19,6 +19,8 @@ obj-$(CONFIG_ARCH_OMAP4) += omap_device.o
 
 obj-$(CONFIG_OMAP_MCBSP) += mcbsp.o
 
+obj-$(CONFIG_OMAP_USER_DMM) += dmm_user.o iodmm.o
+
 obj-$(CONFIG_OMAP_DM_TIMER) += dmtimer.o
 obj-$(CONFIG_OMAP_DEBUG_DEVICES) += debug-devices.o
 obj-$(CONFIG_OMAP_DEBUG_LEDS) += debug-leds.o
@@ -27,5 +29,6 @@ obj-y += $(i2c-omap-m) $(i2c-omap-y)
 
 # OMAP mailbox framework
 obj-$(CONFIG_OMAP_MBOX_FWK) += mailbox.o
+obj-$(CONFIG_OMAP_REMOTE_PROC) += remoteproc.o
 
 obj-$(CONFIG_OMAP_PM_NOOP) += omap-pm-noop.o
