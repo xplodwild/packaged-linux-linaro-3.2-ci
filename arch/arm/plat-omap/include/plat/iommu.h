@@ -51,9 +51,9 @@ struct omap_iommu {
 
 	struct blocking_notifier_head	notifier;
 
-	void *ctx; /* iommu context: registres saved area */
 	u32 da_start;
 	u32 da_end;
+	struct iotlb_entry *tlbs_e;/* iommu tlbs context: saved area */
 	struct platform_device *pdev;
 	struct list_head event_list;
 	spinlock_t event_lock;
@@ -89,7 +89,7 @@ struct iotlb_lock {
 
 /* architecture specific functions */
 struct iommu_functions {
-	unsigned long	version;
+	u32 (*get_version)(struct iommu *obj);
 
 	int (*enable)(struct omap_iommu *obj);
 	void (*disable)(struct omap_iommu *obj);
@@ -203,6 +203,8 @@ extern void iommu_put(struct iommu *obj);
 
 extern void omap_iommu_save_ctx(struct omap_iommu *obj);
 extern void omap_iommu_restore_ctx(struct omap_iommu *obj);
+u32 iommu_save_tlb_entries(struct iommu *obj);
+u32 iommu_restore_tlb_entries(struct iommu *obj);
 
 extern int omap_install_iommu_arch(const struct iommu_functions *ops);
 extern void omap_uninstall_iommu_arch(const struct iommu_functions *ops);

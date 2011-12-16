@@ -85,6 +85,11 @@ static void __iommu_set_twl(struct omap_iommu *obj, bool on)
 	iommu_write_reg(obj, l, MMU_CNTL);
 }
 
+static u32 omap2_get_version(struct iommu *obj)
+{
+	return iommu_read_reg(obj, MMU_REVISION);
+}
+
 static int omap2_iommu_enable(struct omap_iommu *obj)
 {
 	u32 l, pa;
@@ -128,6 +133,9 @@ static int omap2_iommu_enable(struct omap_iommu *obj)
 	iommu_write_reg(obj, pa, MMU_TTB);
 
 	__iommu_set_twl(obj, true);
+
+	if (cpu_is_omap44xx())
+		iommu_write_reg(obj, 0x1, MMU_GP_REG);
 
 	return 0;
 }
@@ -290,6 +298,10 @@ omap2_iommu_dump_ctx(struct omap_iommu *obj, char *buf, ssize_t len)
 	pr_reg(READ_CAM);
 	pr_reg(READ_RAM);
 	pr_reg(EMU_FAULT_AD);
+if (cpu_is_omap44xx()) {
+	pr_reg(FAULT_PC);
+	pr_reg(FAULT_STATUS);
+}
 out:
 	return p - buf;
 }
@@ -325,6 +337,7 @@ static void omap2_cr_to_e(struct cr_regs *cr, struct iotlb_entry *e)
 	e->da		= cr->cam & MMU_CAM_VATAG_MASK;
 	e->pa		= cr->ram & MMU_RAM_PADDR_MASK;
 	e->valid	= cr->cam & MMU_CAM_V;
+	e->prsvd	= cr->cam & MMU_CAM_P;
 	e->pgsz		= cr->cam & MMU_CAM_PGSZ_MASK;
 	e->endian	= cr->ram & MMU_RAM_ENDIAN_MASK;
 	e->elsz		= cr->ram & MMU_RAM_ELSZ_MASK;
@@ -332,7 +345,7 @@ static void omap2_cr_to_e(struct cr_regs *cr, struct iotlb_entry *e)
 }
 
 static const struct iommu_functions omap2_iommu_ops = {
-	.version	= IOMMU_ARCH_VERSION,
+	.get_version	= omap2_get_version,
 
 	.enable		= omap2_iommu_enable,
 	.disable	= omap2_iommu_disable,
@@ -350,8 +363,6 @@ static const struct iommu_functions omap2_iommu_ops = {
 
 	.get_pte_attr	= omap2_get_pte_attr,
 
-	.save_ctx	= omap2_iommu_save_ctx,
-	.restore_ctx	= omap2_iommu_restore_ctx,
 	.dump_ctx	= omap2_iommu_dump_ctx,
 };
 
