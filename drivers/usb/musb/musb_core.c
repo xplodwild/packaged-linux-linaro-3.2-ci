@@ -2292,6 +2292,8 @@ static int musb_suspend(struct device *dev)
 	struct musb	*musb = dev_to_musb(dev);
 	unsigned long	flags;
 
+        pm_runtime_get_sync(musb->controller);
+
 	spin_lock_irqsave(&musb->lock, flags);
 
 	if (is_peripheral_active(musb)) {
@@ -2305,15 +2307,26 @@ static int musb_suspend(struct device *dev)
 	}
 
 	spin_unlock_irqrestore(&musb->lock, flags);
+	pm_runtime_put(musb->controller);
+
 	return 0;
 }
 
 static int musb_resume_noirq(struct device *dev)
 {
+	struct musb	*musb = dev_to_musb(dev);
+
+        pm_runtime_get_sync(musb->controller);
+
+	musb_restore_context(musb);
+
 	/* for static cmos like DaVinci, register values were preserved
 	 * unless for some reason the whole soc powered down or the USB
 	 * module got reset through the PSC (vs just being disabled).
 	 */
+
+	pm_runtime_put(musb->controller);
+
 	return 0;
 }
 
