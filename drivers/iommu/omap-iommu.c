@@ -17,13 +17,10 @@
 #include <linux/interrupt.h>
 #include <linux/ioport.h>
 #include <linux/platform_device.h>
-<<<<<<< current
 #include <linux/iommu.h>
 #include <linux/mutex.h>
 #include <linux/spinlock.h>
-=======
 #include <linux/eventfd.h>
->>>>>>> patched
 
 #include <asm/cacheflush.h>
 
@@ -719,11 +716,7 @@ static size_t iopgtable_clear_entry(struct omap_iommu *obj, u32 da)
 	return bytes;
 }
 
-<<<<<<< current
 static void iopgtable_clear_entry_all(struct omap_iommu *obj)
-=======
-void iopgtable_clear_entry_all(struct iommu *obj)
->>>>>>> patched
 {
 	int i;
 
@@ -885,14 +878,9 @@ static struct omap_iommu *omap_iommu_attach(struct device *dev, u32 *iopgd)
 
 	if (!try_module_get(obj->owner))
 		goto err_module;
-
-<<<<<<< current
 	spin_unlock(&obj->iommu_lock);
 
-=======
 	iommu_set_twl(obj, true);
-	mutex_unlock(&obj->iommu_lock);
->>>>>>> patched
 	dev_dbg(obj->dev, "%s: %s\n", __func__, obj->name);
 	return obj;
 
