@@ -16,11 +16,14 @@
 #include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/ioport.h>
-#include <linux/clk.h>
 #include <linux/platform_device.h>
+<<<<<<< current
 #include <linux/iommu.h>
 #include <linux/mutex.h>
 #include <linux/spinlock.h>
+=======
+#include <linux/eventfd.h>
+>>>>>>> patched
 
 #include <asm/cacheflush.h>
 
@@ -281,9 +284,8 @@ static int load_iotlb_entry(struct omap_iommu *obj, struct iotlb_entry *e)
 	}
 
 	cr = iotlb_alloc_cr(obj, e);
-	if (IS_ERR(cr)) {
+	if (IS_ERR(cr))
 		return PTR_ERR(cr);
-	}
 
 	iotlb_load_cr(obj, cr);
 	kfree(cr);
@@ -447,22 +449,15 @@ EXPORT_SYMBOL_GPL(omap_foreach_iommu_device);
  */
 static void flush_iopgd_range(u32 *first, u32 *last)
 {
-	/* FIXME: L2 cache should be taken care of if it exists */
-	do {
-		asm("mcr	p15, 0, %0, c7, c10, 1 @ flush_pgd"
-		    : : "r" (first));
-		first += L1_CACHE_BYTES / sizeof(*first);
-	} while (first <= last);
+	dmac_flush_range(first, last);
+	outer_flush_range(virt_to_phys(first), virt_to_phys(last));
 }
+
 
 static void flush_iopte_range(u32 *first, u32 *last)
 {
-	/* FIXME: L2 cache should be taken care of if it exists */
-	do {
-		asm("mcr	p15, 0, %0, c7, c10, 1 @ flush_pte"
-		    : : "r" (first));
-		first += L1_CACHE_BYTES / sizeof(*first);
-	} while (first <= last);
+	dmac_flush_range(first, last);
+	outer_flush_range(virt_to_phys(first), virt_to_phys(last));
 }
 
 static void iopte_free(u32 *iopte)
@@ -724,7 +719,11 @@ static size_t iopgtable_clear_entry(struct omap_iommu *obj, u32 da)
 	return bytes;
 }
 
+<<<<<<< current
 static void iopgtable_clear_entry_all(struct omap_iommu *obj)
+=======
+void iopgtable_clear_entry_all(struct iommu *obj)
+>>>>>>> patched
 {
 	int i;
 
@@ -751,6 +750,15 @@ static void iopgtable_clear_entry_all(struct omap_iommu *obj)
 
 	spin_unlock(&obj->page_table_lock);
 }
+EXPORT_SYMBOL_GPL(iopgtable_clear_entry_all);
+
+void eventfd_notification(struct iommu *obj)
+{
+	struct iommu_event_ntfy *fd_reg;
+
+	list_for_each_entry(fd_reg, &obj->event_list, list)
+		eventfd_signal(fd_reg->evt_ctx, 1);
+}
 
 /*
  *	Device IOMMU generic operations
@@ -765,6 +773,7 @@ static irqreturn_t iommu_fault_handler(int irq, void *data)
 	if (!obj->refcount)
 		return IRQ_NONE;
 
+	eventfd_notification(obj);
 	errs = iommu_report_fault(obj, &da);
 	if (errs == 0)
 		return IRQ_HANDLED;
@@ -851,8 +860,13 @@ static struct omap_iommu *omap_iommu_attach(struct device *dev, u32 *iopgd)
 	if (!try_module_get(obj->owner))
 		goto err_module;
 
+<<<<<<< current
 	spin_unlock(&obj->iommu_lock);
 
+=======
+	iommu_set_twl(obj, true);
+	mutex_unlock(&obj->iommu_lock);
+>>>>>>> patched
 	dev_dbg(obj->dev, "%s: %s\n", __func__, obj->name);
 	return obj;
 
@@ -915,6 +929,8 @@ static int __devinit omap_iommu_probe(struct platform_device *pdev)
 	mutex_init(&obj->mmap_lock);
 	spin_lock_init(&obj->page_table_lock);
 	INIT_LIST_HEAD(&obj->mmap);
+
+	INIT_LIST_HEAD(&obj->event_list);
 
 	obj->regbase = pdata->io_base;
 
