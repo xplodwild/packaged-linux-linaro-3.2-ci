@@ -49,6 +49,8 @@ struct omap_iommu {
 	struct list_head	mmap;
 	struct mutex		mmap_lock; /* protect mmap */
 
+	struct blocking_notifier_head	notifier;
+
 	void *ctx; /* iommu context: registres saved area */
 	u32 da_start;
 	u32 da_end;
@@ -111,6 +113,11 @@ struct iommu_functions {
 	ssize_t (*dump_ctx)(struct omap_iommu *obj, char *buf, ssize_t len);
 };
 
+enum {
+	IOMMU_FAULT,
+	IOMMU_CLOSE,
+};
+
 struct iommu_platform_data {
 	const char *name;
 	const char *oh_name;
@@ -171,6 +178,12 @@ omap_iopgtable_store_entry(struct omap_iommu *obj, struct iotlb_entry *e);
 extern int omap_iommu_set_isr(const char *name,
 		 int (*isr)(struct omap_iommu *obj, u32 da, u32 iommu_errs,
 		void *priv), void *isr_priv);
+extern int iommu_register_notifier(struct iommu *obj,
+						struct notifier_block *nb);
+extern int iommu_unregister_notifier(struct iommu *obj,
+						struct notifier_block *nb);
+extern int iommu_notify_event(struct iommu *obj, int event, void *data);
+
 extern int load_iotlb_entry(struct iommu *obj, struct iotlb_entry *e);
 extern void iommu_set_twl(struct iommu *obj, bool on);
 extern void flush_iotlb_page(struct iommu *obj, u32 da);
