@@ -13,6 +13,7 @@
 #ifndef __MACH_IOMMU_H
 #define __MACH_IOMMU_H
 
+#include <linux/device.h>
 #include <linux/list.h>
 
 struct iotlb_entry {
@@ -219,4 +220,6 @@ omap_dump_tlb_entries(struct omap_iommu *obj, char *buf, ssize_t len);
 struct device *omap_find_iommu_device(const char *name);
 
 extern int iommu_get_plat_data_size(void);
+extern struct device *omap_iommu_get_dev(char *dev_name);
+
 #endif /* __MACH_IOMMU_H */
