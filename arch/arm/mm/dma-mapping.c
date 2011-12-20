@@ -503,9 +503,13 @@ static void *__alloc_from_contiguous(struct device *dev, size_t size,
 	size_t count = size >> PAGE_SHIFT;
 	struct page *page;
 
+	pr_err("__alloc_from_contiguous: count=%lu, order=%lu\n", (unsigned long)count, order);
+
 	page = dma_alloc_from_contiguous(dev, count, order);
 	if (!page)
 		return NULL;
+
+	pr_err("__alloc_from_contiguous: page=%p, size=%lu\n", page, (unsigned long)size);
 
 	__dma_clear_buffer(page, size);
 	__dma_remap(page, size, prot);
