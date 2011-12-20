@@ -25,6 +25,7 @@
 #include <linux/sched.h>	/* current */
 #include <linux/mm.h>
 #include <linux/mm_types.h>
+#include <linux/highmem.h>
 #include <asm/mach/map.h>	/* for ioremap_page */
 
 #include "_tiler.h"
