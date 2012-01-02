@@ -17,6 +17,8 @@
 #include <linux/dma-direction.h>
 #include <linux/cdev.h>
 
+#include <plat/dmm_user.h>
+
 #define IOVMM_IOC_MAGIC		'V'
 
 #define IOVMM_IOCSETTLBENT	_IO(IOVMM_IOC_MAGIC, 0)
@@ -178,12 +180,6 @@ extern struct sg_table *iommu_vunmap(struct iommu *obj, u32 da);
 extern u32 iommu_vmalloc(struct iommu *obj, u32 da, size_t bytes,
 			   u32 flags);
 extern void iommu_vfree(struct iommu *obj, const u32 da);
-extern u32 iommu_kmap(struct iommu *obj, u32 da, u32 pa, size_t bytes,
-			u32 flags);
-extern void iommu_kunmap(struct iommu *obj, u32 da);
-extern u32 iommu_kmalloc(struct iommu *obj, u32 da, size_t bytes,
-			   u32 flags);
-extern void iommu_kfree(struct iommu *obj, u32 da);
 
 extern void *da_to_va(struct iommu *obj, u32 da);
 #endif /* __IOMMU_MMAP_H */
