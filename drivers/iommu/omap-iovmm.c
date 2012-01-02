@@ -83,9 +83,6 @@ static unsigned int sgtable_offset(const struct sg_table *sgt)
 
 #define OMAP_IOVMM_NAME "iovmm-omap"
 
-static atomic_t		num_of_iovmmus;
-static struct class	*omap_iovmm_class;
-static dev_t		omap_iovmm_dev;
 static struct kmem_cache *iovm_area_cachep;
 /* return total bytes of sg buffers */
 static size_t sgtable_len(const struct sg_table *sgt)
