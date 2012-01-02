@@ -764,15 +764,6 @@ void omap_iommu_vfree(struct iommu_domain *domain, struct omap_iommu *obj,
 }
 EXPORT_SYMBOL_GPL(omap_iommu_vfree);
 
-static int iommu_dmm(struct iodmm_struct *obj, u32 pool_id, u32 *da,
-			u32 va, size_t bytes, u32 flags)
-{
-	int err = 0;
-
-	err = dmm_user(obj, pool_id, da, va, bytes, flags);
-	return err;
-}
-
 static int __init iovmm_init(void)
 {
 	const unsigned long flags = SLAB_HWCACHE_ALIGN;
