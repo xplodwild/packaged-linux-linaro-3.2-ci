@@ -1926,7 +1926,6 @@ static struct omap_hwmod omap44xx_sl2if_hwmod = {
 	},
 	.slaves		= omap44xx_sl2if_slaves,
 	.slaves_cnt	= ARRAY_SIZE(omap44xx_sl2if_slaves),
-	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP44XX),
 };
 
 /*
@@ -2638,7 +2637,6 @@ static struct omap_hwmod omap44xx_fdif_hwmod = {
 	.slaves_cnt	= ARRAY_SIZE(omap44xx_fdif_slaves),
 	.masters	= omap44xx_fdif_masters,
 	.masters_cnt	= ARRAY_SIZE(omap44xx_fdif_masters),
-	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP44XX),
 };
 
 
