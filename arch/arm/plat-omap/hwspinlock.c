@@ -288,7 +288,6 @@ static int __devinit hwspinlock_probe(struct platform_device *pdev)
 		hwspinlocks[id].lock_reg	= io_base + pdata->
 					lock_base_offset + sizeof(u32) * id;
 	}
-	pm_runtime_enable(&pdev->dev);
 
 	return 0;
 }
