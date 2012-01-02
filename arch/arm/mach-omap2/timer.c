@@ -369,11 +369,11 @@ static int omap2_dm_timer_set_src(struct platform_device *pdev, int source)
 
 	switch (source) {
 	case OMAP_TIMER_SRC_SYS_CLK:
-		parent_name = "sys_ck";
+		parent_name = "sys_clkin_ck"; // "sys_ck";
 		break;
 
 	case OMAP_TIMER_SRC_32_KHZ:
-		parent_name = "32k_ck";
+		parent_name = "sys_32k_ck";
 		break;
 
 	case OMAP_TIMER_SRC_EXT_CLK:
