@@ -335,11 +335,11 @@ static int __init omap_ipussdev_init(void)
 	int i;
 	int first = 1;
 	struct omap_hwmod *oh;
-	struct omap_device *od;
 	char *oh_name;
 	char *pdev_name = IPU_DRIVER_NAME;
 	struct omap_device_pm_latency *ohl = omap_ipupm_latency;
 	int ohl_cnt = ARRAY_SIZE(omap_ipupm_latency);
+	struct platform_device *pdev;
 
 	for (i = 0; i < ARRAY_SIZE(omap_ipupm_data); i++) {
 		oh_name = omap_ipupm_data[i].oh_name;
@@ -363,22 +363,22 @@ static int __init omap_ipussdev_init(void)
 		}
 		omap_ipupm_data[i].oh = oh;
 
-		od = omap_device_build(pdev_name, IVA_IPU_BUS_ID+i, oh,
+		pdev = omap_device_build(pdev_name, IVA_IPU_BUS_ID+i, oh,
 				    &omap_ipupm_data[i],
 				    sizeof(struct omap_ipupm_mod_platform_data),
 				    ohl, ohl_cnt, false);
 
-		status = IS_ERR(od);
+		status = IS_ERR(pdev);
 		WARN(status, "Could not build omap_device for %s %s\n",
 							pdev_name, oh_name);
 		if (!status) {
 			/* Save the id of the first registered dev */
 			if (first) {
-				ipu_pm_first_dev = od->pdev.id;
+				ipu_pm_first_dev = pdev->id;
 				first = 0;
 			}
-			omap_ipupm_data[i].pdev = &od->pdev;
-			omap_ipupm_data[i].dev = &od->pdev.dev;
+			omap_ipupm_data[i].pdev = pdev;
+			omap_ipupm_data[i].dev = &pdev->dev;
 		}
 	}
 
