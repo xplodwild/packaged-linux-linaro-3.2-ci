@@ -24,6 +24,7 @@
  * 02110-1301 USA
  */
 
+#include <linux/module.h>
 #include <linux/err.h>
 #include <linux/slab.h>
 #include <linux/scatterlist.h>

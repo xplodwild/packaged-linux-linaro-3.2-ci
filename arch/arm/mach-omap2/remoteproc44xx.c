@@ -18,6 +18,7 @@
  * 02110-1301 USA
  *
  */
+#include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/clk.h>
 #include <linux/err.h>
