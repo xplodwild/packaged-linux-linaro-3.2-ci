@@ -99,9 +99,9 @@ inline int ipu_pm_module_set_rate(unsigned rsrc,
 	pd = ipupm_get_plat_data();
 
 	if (target_rsrc == IPU_PM_MPU)
-		dp = omap2_get_mpuss_device();
+		dp = omap_device_get_by_hwmod_name("mpu");
 	else if (target_rsrc == IPU_PM_CORE)
-		dp = omap2_get_l3_device();
+		dp =  omap_device_get_by_hwmod_name("l3_main_1");
 	else {
 		if (target_rsrc == IPU_PM_SELF)
 			target = rsrc;
