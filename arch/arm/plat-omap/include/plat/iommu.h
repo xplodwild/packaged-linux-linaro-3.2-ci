@@ -60,6 +60,20 @@ struct omap_iommu {
 	spinlock_t event_lock;
 };
 
+/**                                                                             
+ *  * struct omap_iommu_domain - omap iommu domain                                 
+ *   * @pgtable:    the page table                                                  
+ *    * @iommu_dev:  an omap iommu device attached to this domain. only a single     
+ *     *              iommu device can be attached for now.                           
+ *      * @lock:       domain lock, should be taken when attaching/detaching           
+ *       */                                                                             
+struct omap_iommu_domain {                                                      
+        u32 *pgtable;                                                           
+        struct omap_iommu *iommu_dev;                                           
+        spinlock_t lock;                                                        
+};   
+
+
 struct cr_regs {
 	union {
 		struct {

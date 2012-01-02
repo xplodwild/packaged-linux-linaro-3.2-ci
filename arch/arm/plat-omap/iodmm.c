@@ -804,7 +804,6 @@ static int phys_to_device_map(struct omap_iodmm_struct *obj,
 						size_flag[i] |
 						MMU_RAM_ENDIAN_LITTLE |
 						MMU_RAM_ELSZ_32);
-				pr_err("phys_to_device_map: calling omap_iopgtable_store_entry\n");
 				omap_iopgtable_store_entry(obj->iovmm->iommu, &e);
 				bytes -= pg_size[i];
 				da += pg_size[i];

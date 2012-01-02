@@ -872,8 +872,10 @@ static int ipc_proc_sync_start(u16 remote_proc_id, void *shared_addr)
 				Cache_inv((void *)remote, reserved_size,
 							Cache_Type_ALL, true);
 #endif
-			if (remote->started_key != IPC_PROCSYNCSTART)
+			if (remote->started_key != IPC_PROCSYNCSTART) {
+				pr_err("(remote->started_key != IPC_PROCSYNCSTART))\n");
 				status = IPC_E_FAIL;
+			}
 			goto exit;
 		}
 

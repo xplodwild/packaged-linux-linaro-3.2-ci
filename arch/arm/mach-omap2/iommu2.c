@@ -17,6 +17,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/stringify.h>
+#include <linux/iommu.h>
 
 #include <plat/iommu.h>
 #include <plat/omap_device.h>
@@ -104,22 +105,33 @@ static int omap2_iommu_enable(struct omap_iommu *obj)
 	u32 l, pa;
 	unsigned long timeout;
 	int ret = 0;
+	struct iommu_domain *i_domain = obj->domain;
+        struct omap_iommu_domain *omap_domain;                   
 
-	if (!obj->iopgd) {
-		pr_err("omap2_iommu_enable: NULL obj->iopgd\n");
+	if (!i_domain) {                                                     
+                pr_err("omap2_iommu_enable: NULL iommu_domain\n");               
+                return -EINVAL;                                                 
+        }
+
+	omap_domain = i_domain->priv;
+
+	if (!omap_domain) {
+		pr_err("omap2_iommu_enable: NULL omap_domain\n");
 		return -EINVAL;
 	}
-	if (!IS_ALIGNED((u32)obj->iopgd,  SZ_16K)) {
-		pr_err("omap2_iommu_enable: iopgd is not 16K aligned!\n");
+	if (!omap_domain->pgtable) {
+		pr_err("omap2_iommu_enable: NULL omap_domain->pgtable\n");
 		return -EINVAL;
 	}
-
-	pa = virt_to_phys(obj->iopgd);
+	if (!IS_ALIGNED((u32)omap_domain->pgtable, SZ_16K)) {
+		pr_err("omap2_iommu_enable: omap_domain->pgtable is not 16K aligned!\n");
+		return -EINVAL;
+	}
+	pa = virt_to_phys(omap_domain->pgtable);
 	if (!IS_ALIGNED(pa, SZ_16K)) {
 		pr_err("omap2_iommu_enable: virt_to_phys not 16K aligned!\n");
 		return -EINVAL;
 	}
-
 #ifdef CONFIG_OMAP_PM
 	if (!strcmp(obj->name, "ducati")) {
 		ret = omap_pm_set_max_sdma_lat(&pm_iommu1_handle,
@@ -136,8 +148,10 @@ static int omap2_iommu_enable(struct omap_iommu *obj)
 		return ret;
 	}
 
-	iommu_write_reg(obj, MMU_SYS_SOFTRESET, MMU_SYSCONFIG);
+	if (!obj->regbase)
+		return 0;
 
+	iommu_write_reg(obj, MMU_SYS_SOFTRESET, MMU_SYSCONFIG);
 	timeout = jiffies + msecs_to_jiffies(20);
 	do {
 		l = iommu_read_reg(obj, MMU_SYSSTATUS);
@@ -172,12 +186,15 @@ static int omap2_iommu_enable(struct omap_iommu *obj)
 static void omap2_iommu_disable(struct omap_iommu *obj)
 {
 	int ret = 0;
+	u32 l;
 
-	u32 l = iommu_read_reg(obj, MMU_CNTL);
+	if (obj->regbase) {
+		l = iommu_read_reg(obj, MMU_CNTL);
 
-	l &= ~MMU_CNTL_MASK;
-	iommu_write_reg(obj, l, MMU_CNTL);
-	iommu_write_reg(obj, MMU_SYS_IDLE_FORCE, MMU_SYSCONFIG);
+		l &= ~MMU_CNTL_MASK;
+		iommu_write_reg(obj, l, MMU_CNTL);
+		iommu_write_reg(obj, MMU_SYS_IDLE_FORCE, MMU_SYSCONFIG);
+	}
 
 	dev_dbg(obj->dev, "%s is shutting down\n", obj->name);
 	if (omap_device_shutdown(obj->pdev))

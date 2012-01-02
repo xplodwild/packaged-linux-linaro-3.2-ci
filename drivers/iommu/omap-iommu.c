@@ -33,19 +33,6 @@
 	     (__i < (n)) && (cr = __iotlb_read_cr((obj), __i), true);	\
 	     __i++)
 
-/**
- * struct omap_iommu_domain - omap iommu domain
- * @pgtable:	the page table
- * @iommu_dev:	an omap iommu device attached to this domain. only a single
- *		iommu device can be attached for now.
- * @lock:	domain lock, should be taken when attaching/detaching
- */
-struct omap_iommu_domain {
-	u32 *pgtable;
-	struct omap_iommu *iommu_dev;
-	spinlock_t lock;
-};
-
 /* accommodate the difference between omap1 and omap2/3 */
 static const struct omap_iommu_functions *arch_iommu;
 
@@ -348,10 +335,6 @@ static void flush_iotlb_page(struct omap_iommu *obj, u32 da)
 {
 	int i;
 	struct cr_regs cr;
-
-	pr_err("flush_iotlb_page: obj=%p da=0x%x\n", obj, da);
-
-	WARN_ON(1);
 
 	for_each_iotlb_cr(obj, obj->nr_tlb_entries, i, cr) {
 		u32 start;
@@ -882,38 +865,41 @@ static irqreturn_t iommu_fault_handler(int irq, void *data)
 	u32 da, errs;
 	u32 *iopgd, *iopte;
 	struct omap_iommu *obj = data;
-	struct iommu_domain *domain = obj->domain;
+	struct iommu_domain *domain;
+
+	if (!data)
+		return IRQ_NONE;
 
 	if (!obj->refcount)
 		return IRQ_NONE;
 
+	domain = obj->domain;
+	if (!domain)
+		pr_err("iommu_fault_handler: NULL domain\n");
 	eventfd_notification(obj);
 	/* Dynamic loading TLB or PTE */
 	errs = iommu_notify_event(obj, IOMMU_FAULT, data);
 
 	if (errs == NOTIFY_OK)
 		return IRQ_HANDLED;
-
 	errs = iommu_report_fault(obj, &da);
 	if (errs == 0)
 		return IRQ_HANDLED;
-
+pr_err("d\n");
 	/* Fault callback or TLB/PTE Dynamic loading */
 	if (!report_iommu_fault(domain, obj->dev, da, 0))
 		return IRQ_HANDLED;
-
+pr_err("e\n");
 	iommu_disable(obj);
-
+pr_err("f\n");
 	iopgd = iopgd_offset(obj, da);
-
+pr_err("g\n");
 	if (!iopgd_is_table(*iopgd)) {
 		dev_err(obj->dev, "%s: errs:0x%08x da:0x%08x pgd:0x%p "
 			"*pgd:px%08x\n", obj->name, errs, da, iopgd, *iopgd);
 		return IRQ_NONE;
 	}
-
 	iopte = iopte_offset(iopgd, da);
-
 	dev_err(obj->dev, "%s: errs:0x%08x da:0x%08x pgd:0x%p *pgd:0x%08x "
 		"pte:0x%p *pte:0x%08x\n", obj->name, errs, da, iopgd, *iopgd,
 		iopte, *iopte);
@@ -975,13 +961,15 @@ static struct omap_iommu *omap_iommu_attach(struct device *dev, u32 *iopgd)
 	err = iommu_enable(obj);
 	if (err)
 		goto err_enable;
-	flush_iotlb_all(obj);
+	if (obj->regbase)
+		flush_iotlb_all(obj);
 
 	if (!try_module_get(obj->owner))
 		goto err_module;
 	spin_unlock(&obj->iommu_lock);
 
-	iommu_set_twl(obj, true);
+	if (obj->regbase)
+		iommu_set_twl(obj, true);
 	dev_dbg(obj->dev, "%s: %s\n", __func__, obj->name);
 	return obj;
 
@@ -1057,9 +1045,34 @@ static int __devinit omap_iommu_probe(struct platform_device *pdev)
 	if (err < 0)
 		goto error;
 	platform_set_drvdata(pdev, obj);
+	
+	if (obj->regbase) {
+
+		obj->domain = iommu_domain_alloc(pdev->dev.bus);                        
+		if (!obj->domain) {                                                     
+			dev_err(&pdev->dev, "can't alloc iommu domain\n");                
+		        err = -ENOMEM;                                                  
+			goto err_free_irq;                                                 
+		}
+                                                                                
+		err = iommu_attach_device(obj->domain, obj->dev);                 
+		if (err) {                                                              
+			dev_err(&pdev->dev, "can't attach iommu device: %d\n", err);    
+			goto free_domain;                                               
+		}                                                                       
+
+		BUG_ON(!IS_ALIGNED((unsigned long)obj->iopgd, IOPGD_TABLE_SIZE));
+	}
 
 	dev_info(&pdev->dev, "%s registered\n", obj->name);
 	return 0;
+
+
+free_domain:
+	iommu_domain_free(obj->domain);
+
+err_free_irq:
+        free_irq(pdata->irq, obj);
 
 error:
 	kfree(obj);
