@@ -215,7 +215,6 @@ static int __init omap_iommu_init(void)
 {
 	int i, ohl_cnt;
 	struct omap_hwmod *oh;
-	struct omap_device *od;
 	struct omap_device_pm_latency *ohl;
 	struct platform_device *pdev;
 
@@ -247,10 +246,10 @@ static int __init omap_iommu_init(void)
 							data->oh_name);
 			continue;
 		}
-		od = omap_device_build("omap-iommu", i, oh,
+		pdev = omap_device_build("omap-iommu", i, oh,
 					data, sizeof(*data),
 					ohl, ohl_cnt, false);
-		WARN(IS_ERR(od), "Could not build omap_device"
+		WARN(IS_ERR(pdev), "Could not build omap_device"
 				"for %s %s\n", "omap-iommu", data->oh_name);
 
 		pdev = platform_device_alloc("omap-iovmm", i);
