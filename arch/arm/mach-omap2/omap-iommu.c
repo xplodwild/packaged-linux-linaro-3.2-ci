@@ -107,7 +107,7 @@ struct device *omap_iommu_get_dev(const char *dev_name)
 }
 EXPORT_SYMBOL(omap_iommu_get_dev);
 
-#if 0
+#if 1
 
 /**                                                                             
  *  * iommu_get - Get iommu handler                                                

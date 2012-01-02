@@ -190,8 +190,8 @@ extern void iommu_set_twl(struct omap_iommu *obj, bool on);
 extern void flush_iotlb_range(struct omap_iommu *obj, u32 start, u32 end);
 
 extern int iommu_set_da_range(struct omap_iommu *obj, u32 start, u32 end);
-//extern struct omap_iommu *iommu_get(const char *name);
-//extern void iommu_put(struct omap_iommu *obj);
+extern struct omap_iommu *iommu_get(const char *name);
+extern void iommu_put(struct omap_iommu *obj);
 
 extern void omap_iommu_save_ctx(struct omap_iommu *obj);
 extern void omap_iommu_restore_ctx(struct omap_iommu *obj);
