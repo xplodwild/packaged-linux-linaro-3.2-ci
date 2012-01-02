@@ -885,6 +885,11 @@ static irqreturn_t iommu_fault_handler(int irq, void *data)
 	errs = iommu_report_fault(obj, &da);
 	if (errs == 0)
 		return IRQ_HANDLED;
+
+	dev_err(obj->dev, "iommu_fault_handler: %s: errs 0x%08X\n", obj->name, errs);
+
+	return IRQ_NONE;
+
 pr_err("d\n");
 	/* Fault callback or TLB/PTE Dynamic loading */
 	if (!report_iommu_fault(domain, obj->dev, da, 0))
