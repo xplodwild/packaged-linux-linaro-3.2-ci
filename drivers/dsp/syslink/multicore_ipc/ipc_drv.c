@@ -32,10 +32,9 @@
 #include <notify_ioctl.h>
 #include <nameserver.h>
 #ifdef CONFIG_SYSLINK_RECOVERY
+#include <plat/iommu.h>
 #include <plat/remoteproc.h>
 #endif
-
-#include <plat/iommu.h>
 
 #define IPC_NAME		"syslink_ipc"
 #define IPC_MAJOR		0
