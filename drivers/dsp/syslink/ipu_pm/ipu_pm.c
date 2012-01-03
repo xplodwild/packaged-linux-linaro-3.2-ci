@@ -585,7 +585,7 @@ static int ipu_pm_iommu_notifier_call(struct notifier_block *nb,
 		 * is up and running for reclaiming MMU entries
 		 */
 		if (ipu_pm_get_state(SYS_M3) & SYS_PROC_DOWN)
-			iommu_restore_ctx(ducati_iommu);
+			omap_iommu_restore_ctx(ducati_iommu);
 		return 0;
 	case IOMMU_FAULT:
 		ipu_pm_recover_schedule();
@@ -2504,7 +2504,7 @@ int ipu_pm_save_ctx(int proc_id)
 		else
 			pr_err("Not able to save mbox");
 		if (ducati_iommu)
-			iommu_save_ctx(ducati_iommu);
+			omap_iommu_save_ctx(ducati_iommu);
 		else
 			pr_err("Not able to save iommu");
 	} else
@@ -2593,7 +2593,7 @@ int ipu_pm_restore_ctx(int proc_id)
 		else
 			pr_err("Not able to restore mbox");
 		if (ducati_iommu)
-			iommu_restore_ctx(ducati_iommu);
+			omap_iommu_restore_ctx(ducati_iommu);
 		else
 			pr_err("Not able to restore iommu");
 
@@ -2928,7 +2928,7 @@ int ipu_pm_detach(u16 remote_proc_id)
 			 * after ipu_pm is shutdown
 			 */
 			if (ipu_pm_get_state(SYS_M3) & SYS_PROC_DOWN)
-				iommu_restore_ctx(ducati_iommu);
+				omap_iommu_restore_ctx(ducati_iommu);
 			iommu_unregister_notifier(ducati_iommu,
 					&ipu_pm_notify_nb_iommu_ducati);
 			pr_debug("releasing ducati_iommu\n");
