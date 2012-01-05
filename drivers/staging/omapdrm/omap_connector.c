@@ -623,7 +623,11 @@ struct drm_connector * omap_connector_init(struct drm_device *dev,
 		break;
 	case OMAP_DSS_DISPLAY_DISABLED:
 		if (dssdev->driver) {
-			int ret = dssdev->driver->enable(dssdev);
+			int ret;
+			ret = dssdev->driver->detect(dssdev);
+			if (!ret)
+				break;
+			ret = dssdev->driver->enable(dssdev);
 			if (ret) {
 				DBG("%s: failed to enable: %d",
 						dssdev->name, ret);

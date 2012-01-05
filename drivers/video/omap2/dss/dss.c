@@ -444,8 +444,6 @@ int dss_calc_clock_rates(struct dss_clock_info *cinfo)
 
 int dss_set_clock_div(struct dss_clock_info *cinfo)
 {
-	WARN_ON(1);
-
 	if (dss.dpll4_m4_ck) {
 		unsigned long prate;
 		int r;

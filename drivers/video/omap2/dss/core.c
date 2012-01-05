@@ -393,7 +393,7 @@ static int dss_driver_probe(struct device *dev)
 
 	dss_init_device(core.pdev, dssdev);
 
-	force = pdata->default_device == dssdev;
+	force = 1; /// pdata->default_device == dssdev;
 	dss_recheck_connections(dssdev, force);
 
 	r = dssdrv->probe(dssdev);
