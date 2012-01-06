@@ -903,7 +903,7 @@ int drm_helper_resume_force_mode(struct drm_device *dev)
 }
 EXPORT_SYMBOL(drm_helper_resume_force_mode);
 
-#define DRM_OUTPUT_POLL_PERIOD (10*HZ)
+#define DRM_OUTPUT_POLL_PERIOD (1*HZ)
 static void output_poll_execute(struct work_struct *work)
 {
 	struct delayed_work *delayed_work = to_delayed_work(work);

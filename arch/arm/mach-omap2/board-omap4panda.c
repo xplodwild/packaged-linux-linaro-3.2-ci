@@ -562,12 +562,14 @@ static inline void board_serial_init(void)
 
 static int omap4_panda_enable_dvi(struct omap_dss_device *dssdev)
 {
+	pr_err("omap4_panda_enable_dvi\n");
 	gpio_set_value(dssdev->reset_gpio, 1);
 	return 0;
 }
 
 static void omap4_panda_disable_dvi(struct omap_dss_device *dssdev)
 {
+	pr_err("omap4_panda_disable_dvi\n");
 	gpio_set_value(dssdev->reset_gpio, 0);
 }
 
@@ -642,7 +644,6 @@ static struct omap_dss_device *omap4_panda_dss_devices[] = {
 static struct omap_dss_board_info omap4_panda_dss_data = {
 	.num_devices	= ARRAY_SIZE(omap4_panda_dss_devices),
 	.devices	= omap4_panda_dss_devices,
-	.default_device	= &omap4_panda_hdmi_device,
 };
 
 void omap4_panda_display_init(void)

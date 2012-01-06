@@ -308,14 +308,19 @@ static bool panel_dvi_detect(struct omap_dss_device *dssdev)
 
 	mutex_lock(&ddata->lock);
 
-	if (pdata->i2c_bus_num == 0)
+	if (pdata->i2c_bus_num == 0) {
+		pr_err("panel_dvi_detect: claiming true due to bus num 0\n");
 		goto out;
+	}
 
 	adapter = i2c_get_adapter(pdata->i2c_bus_num);
-	if (!adapter)
+	if (!adapter) {
+		pr_err("panel_dvi_detect: claiming true due to no adapter\n");
 		goto out;
+	}
 
 	r = panel_dvi_ddc_read(adapter, &out, 1, 0);
+	pr_err("panel_dvi_detect: panel_dvi_ddc_read says %d (0 = present)\n", r);
 
 	mutex_unlock(&ddata->lock);
 

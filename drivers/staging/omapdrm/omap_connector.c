@@ -349,7 +349,7 @@ struct drm_encoder * omap_connector_attached_encoder(
 			struct drm_encoder *encoder = obj_to_encoder(obj);
 			struct omap_overlay_manager *mgr =
 					omap_encoder_get_manager(encoder);
-			DBG("%s: found %s", omap_connector->dssdev->name,
+			pr_err("omap_connector_attached_encoder: %s: found %s", omap_connector->dssdev->name,
 					mgr->name);
 			return encoder;
 		}

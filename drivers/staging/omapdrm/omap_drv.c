@@ -60,6 +60,7 @@ static void omap_fb_output_poll_changed(struct drm_device *dev)
 	struct omap_drm_private *priv = dev->dev_private;
 	DBG("dev=%p", dev);
 	if (priv->fbdev) {
+		pr_err("omap_fb_output_poll_changedi *** \n");
 		drm_fb_helper_hotplug_event(priv->fbdev);
 	}
 }
@@ -81,8 +82,7 @@ static int get_connector_type(struct omap_dss_device *dssdev)
 		return DRM_MODE_CONNECTOR_Unknown;
 	}
 }
-
-#if 0 /* enable when dss2 supports hotplug */
+#if 0
 static int omap_drm_notifier(struct notifier_block *nb,
 		unsigned long evt, void *arg)
 {
@@ -91,7 +91,7 @@ static int omap_drm_notifier(struct notifier_block *nb,
 	case OMAP_DSS_HOTPLUG_CONNECT:
 	case OMAP_DSS_HOTPLUG_DISCONNECT: {
 		struct drm_device *dev = drm_device;
-		DBG("hotplug event: evt=%d, dev=%p", evt, dev);
+		pr_err("hotplug event: evt=%d, dev=%p", evt, dev);
 		if (dev) {
 			drm_sysfs_hotplug_event(dev);
 		}
@@ -102,7 +102,6 @@ static int omap_drm_notifier(struct notifier_block *nb,
 	}
 }
 #endif
-
 static void dump_video_chains(void)
 {
 	int i;

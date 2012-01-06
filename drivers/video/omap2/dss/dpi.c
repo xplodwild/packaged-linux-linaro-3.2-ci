@@ -51,6 +51,9 @@ static struct platform_device *dpi_get_dsidev(enum omap_dss_clk_source clk)
 
 static bool dpi_use_dsi_pll(struct omap_dss_device *dssdev)
 {
+
+	return true;
+
 	if (dssdev->clocks.dispc.dispc_fclk_src ==
 			OMAP_DSS_CLK_SRC_DSI_PLL_HSDIV_DISPC ||
 			dssdev->clocks.dispc.dispc_fclk_src ==
