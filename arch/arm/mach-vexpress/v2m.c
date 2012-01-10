@@ -674,7 +674,7 @@ static const char *v2m_dt_match[] __initdata = {
 	NULL,
 };
 
-DT_MACHINE_START(VEXPRESS_DT, "ARM Versatile Express")
+DT_MACHINE_START(VEXPRESS_DT, "ARM-Versatile Express")
 	.map_io		= v2m_dt_map_io,
 	.init_early	= v2m_dt_init_early,
 	.init_irq	= v2m_dt_init_irq,
