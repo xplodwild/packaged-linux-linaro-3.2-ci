@@ -1,0 +1,188 @@
+commit fb3fdcf48a2ccbc81fd6301ed19c13479d5f3af0
+Author: John Rigby <john.rigby@linaro.org>
+
+    KBuild: Allow scripts/* to be cross compiled
+
+diff --git a/scripts/Kbuild.include b/scripts/Kbuild.include
+index d897278..67b49e6 100644
+--- a/scripts/Kbuild.include
++++ b/scripts/Kbuild.include
+@@ -222,11 +222,15 @@ if_changed = $(if $(strip $(any-prereq) $(arg-check)),                       \
+ 	$(echo-cmd) $(cmd_$(1));                                             \
+ 	echo 'cmd_$@ := $(make-cmd)' > $(dot-target).cmd)
+ 
++ifeq ($(KBUILD_SCRIPTROOT),)
++KBUILD_SCRIPTROOT=.
++endif
++
+ # Execute the command and also postprocess generated .d dependencies file.
+ if_changed_dep = $(if $(strip $(any-prereq) $(arg-check) ),                  \
+ 	@set -e;                                                             \
+ 	$(echo-cmd) $(cmd_$(1));                                             \
+-	scripts/basic/fixdep $(depfile) $@ '$(make-cmd)' > $(dot-target).tmp;\
++	$(KBUILD_SCRIPTROOT)/scripts/basic/fixdep $(depfile) $@ '$(make-cmd)' > $(dot-target).tmp;\
+ 	rm -f $(depfile);                                                    \
+ 	mv -f $(dot-target).tmp $(dot-target).cmd)
+ 
+diff --git a/scripts/Makefile.build b/scripts/Makefile.build
+index a0fd502..40c3e3d 100644
+--- a/scripts/Makefile.build
++++ b/scripts/Makefile.build
+@@ -288,13 +288,17 @@ cmd_record_mcount = 						\
+ 	fi;
+ endif
+ 
++ifeq ($(KBUILD_SCRIPTROOT),)
++KBUILD_SCRIPTROOT=.
++endif
++
+ define rule_cc_o_c
+ 	$(call echo-cmd,checksrc) $(cmd_checksrc)			  \
+ 	$(call echo-cmd,cc_o_c) $(cmd_cc_o_c);				  \
+ 	$(cmd_modversions)						  \
+ 	$(call echo-cmd,record_mcount)					  \
+ 	$(cmd_record_mcount)						  \
+-	scripts/basic/fixdep $(depfile) $@ '$(call make-cmd,cc_o_c)' >    \
++	$(KBUILD_SCRIPTROOT)/scripts/basic/fixdep $(depfile) $@ '$(call make-cmd,cc_o_c)' >    \
+ 	                                              $(dot-target).tmp;  \
+ 	rm -f $(depfile);						  \
+ 	mv -f $(dot-target).tmp $(dot-target).cmd
+diff --git a/scripts/kconfig/Makefile b/scripts/kconfig/Makefile
+index 82d2eb2..756cf46 100644
+--- a/scripts/kconfig/Makefile
++++ b/scripts/kconfig/Makefile
+@@ -11,6 +11,12 @@ else
+ Kconfig := Kconfig
+ endif
+ 
++ifdef KBUILD_SCRIPTROOT
++CONF = $(KBUILD_SCRIPTROOT)/scripts/kconfig/conf
++else
++CONF = $(obj)/conf
++endif
++
+ xconfig: $(obj)/qconf
+ 	$< $(Kconfig)
+ 
+@@ -20,16 +26,16 @@ gconfig: $(obj)/gconf
+ menuconfig: $(obj)/mconf
+ 	$< $(Kconfig)
+ 
+-config: $(obj)/conf
++config: $(CONF)
+ 	$< --oldaskconfig $(Kconfig)
+ 
+ nconfig: $(obj)/nconf
+ 	$< $(Kconfig)
+ 
+-oldconfig: $(obj)/conf
++oldconfig: $(CONF)
+ 	$< --$@ $(Kconfig)
+ 
+-silentoldconfig: $(obj)/conf
++silentoldconfig: $(CONF)
+ 	$(Q)mkdir -p include/generated
+ 	$< --$@ $(Kconfig)
+ 
+@@ -41,22 +47,22 @@ ifeq ($(findstring /,$(LSMOD)),)
+ endif
+ endif
+ 
+-localmodconfig: $(obj)/streamline_config.pl $(obj)/conf
++localmodconfig: $(obj)/streamline_config.pl $(CONF)
+ 	$(Q)mkdir -p include/generated
+ 	$(Q)perl $< $(srctree) $(Kconfig) $(LSMOD_F) > .tmp.config
+ 	$(Q)if [ -f .config ]; then 					\
+ 			cmp -s .tmp.config .config ||			\
+ 			(mv -f .config .config.old.1;			\
+ 			 mv -f .tmp.config .config;			\
+-			 $(obj)/conf --silentoldconfig $(Kconfig);	\
++			 $(CONF) --silentoldconfig $(Kconfig);	\
+ 			 mv -f .config.old.1 .config.old)		\
+ 	else								\
+ 			mv -f .tmp.config .config;			\
+-			$(obj)/conf --silentoldconfig $(Kconfig);	\
++			$(CONF) --silentoldconfig $(Kconfig);	\
+ 	fi
+ 	$(Q)rm -f .tmp.config
+ 
+-localyesconfig: $(obj)/streamline_config.pl $(obj)/conf
++localyesconfig: $(obj)/streamline_config.pl $(CONF)
+ 	$(Q)mkdir -p include/generated
+ 	$(Q)perl $< $(srctree) $(Kconfig) $(LSMOD_F) > .tmp.config
+ 	$(Q)sed -i s/=m/=y/ .tmp.config
+@@ -64,11 +70,11 @@ localyesconfig: $(obj)/streamline_config.pl $(obj)/conf
+ 			cmp -s .tmp.config .config ||			\
+ 			(mv -f .config .config.old.1;			\
+ 			 mv -f .tmp.config .config;			\
+-			 $(obj)/conf --silentoldconfig $(Kconfig);	\
++			 $(CONF) --silentoldconfig $(Kconfig);	\
+ 			 mv -f .config.old.1 .config.old)		\
+ 	else								\
+ 			mv -f .tmp.config .config;			\
+-			$(obj)/conf --silentoldconfig $(Kconfig);	\
++			$(CONF) --silentoldconfig $(Kconfig);	\
+ 	fi
+ 	$(Q)rm -f .tmp.config
+ 
+@@ -98,18 +104,18 @@ update-po-config: $(obj)/kxgettext $(obj)/gconf.glade.h
+ 
+ PHONY += allnoconfig allyesconfig allmodconfig alldefconfig randconfig
+ 
+-allnoconfig allyesconfig allmodconfig alldefconfig randconfig: $(obj)/conf
++allnoconfig allyesconfig allmodconfig alldefconfig randconfig: $(CONF)
+ 	$< --$@ $(Kconfig)
+ 
+ PHONY += listnewconfig oldnoconfig savedefconfig defconfig
+ 
+-listnewconfig oldnoconfig: $(obj)/conf
++listnewconfig oldnoconfig: $(CONF)
+ 	$< --$@ $(Kconfig)
+ 
+-savedefconfig: $(obj)/conf
++savedefconfig: $(CONF)
+ 	$< --$@=defconfig $(Kconfig)
+ 
+-defconfig: $(obj)/conf
++defconfig: $(CONF)
+ ifeq ($(KBUILD_DEFCONFIG),)
+ 	$< --defconfig $(Kconfig)
+ else
+@@ -117,7 +123,7 @@ else
+ 	$(Q)$< --defconfig=arch/$(SRCARCH)/configs/$(KBUILD_DEFCONFIG) $(Kconfig)
+ endif
+ 
+-%_defconfig: $(obj)/conf
++%_defconfig: $(CONF)
+ 	$(Q)$< --defconfig=arch/$(SRCARCH)/configs/$@ $(Kconfig)
+ 
+ # Help text used by make help
+diff --git a/scripts/mod/Makefile b/scripts/mod/Makefile
+index ff954f8..258d4ba 100644
+--- a/scripts/mod/Makefile
++++ b/scripts/mod/Makefile
+@@ -1,6 +1,12 @@
+ hostprogs-y	:= modpost mk_elfconfig
+ always		:= $(hostprogs-y) empty.o
+ 
++ifdef KBUILD_SCRIPTROOT
++MKELFCONFIG = $(KBUILD_SCRIPTROOT)/scripts/mod/mk_elfconfig
++else
++MKELFCONFIG = $(obj)/mk_elfconfig
++endif
++
+ modpost-objs	:= modpost.o file2alias.o sumversion.o
+ 
+ # dependencies on generated files need to be listed explicitly
+@@ -8,9 +14,9 @@ modpost-objs	:= modpost.o file2alias.o sumversion.o
+ $(obj)/modpost.o $(obj)/file2alias.o $(obj)/sumversion.o: $(obj)/elfconfig.h
+ 
+ quiet_cmd_elfconfig = MKELF   $@
+-      cmd_elfconfig = $(obj)/mk_elfconfig < $< > $@
++      cmd_elfconfig = $(MKELFCONFIG) < $< > $@
+ 
+-$(obj)/elfconfig.h: $(obj)/empty.o $(obj)/mk_elfconfig FORCE
++$(obj)/elfconfig.h: $(obj)/empty.o $(MKELFCONFIG) FORCE
+ 	$(call if_changed,elfconfig)
+ 
+ targets += elfconfig.h
