@@ -1,10 +1,10 @@
-linux-linaro (3.2.0-1.1) UNRELEASED; urgency=low
+linux-linaro (3.2.0-1.1) precise; urgency=low
 
   * Start linux-linaro 3.2 series by rebasing onto
     ubuntu 3.2.0-8.14 using vanilla linus 3.2 for now since there
     is not yet a linux-linaro-3.2
 
- -- John Rigby <john.rigby@linaro.org>  Tue, 10 Jan 2012 12:10:29 -0700
+ -- John Rigby <john.rigby@linaro.org>  Tue, 10 Jan 2012 15:07:20 -0700
 
 linux-linaro (3.1.0-5.5) oneiric; urgency=low
 
