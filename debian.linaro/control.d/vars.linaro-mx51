@@ -1,4 +1,4 @@
-arch="armel"
+arch="armel armhf"
 supported="Freescale i.MX51"
 desc="Freescale i.MX51 based platforms"
 target="Freescale Babbage platform"
