@@ -3,3 +3,4 @@ repo_list=(
 )
 
 getall armel linaro-mx51 linaro-omap linaro-vexpress
+getall armhf linaro-mx51 linaro-omap linaro-vexpress
