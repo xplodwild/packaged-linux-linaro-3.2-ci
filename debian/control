@@ -1,0 +1,30 @@
+Source: linux-linaro-shared
+Section: devel
+Priority: optional
+Maintainer: Ubuntu Kernel Team <kernel-team@lists.ubuntu.com>
+Standards-Version: 3.8.4.0
+Build-Depends: debhelper (>= 5), cpio, module-init-tools, kernel-wedge (>= 2.24ubuntu1), makedumpfile [amd64 i386], device-tree-compiler [powerpc], libelf-dev, binutils-dev, rsync, libdw-dev
+#Build-Depends-Indep: xmlto, docbook-utils, ghostscript, transfig, bzip2, sharutils, asciidoc
+Build-Conflicts: findutils (= 4.4.1-1ubuntu1)
+Vcs-Git: git://git.linaro.org/ubuntu/linux-linaro.git
+
+Package: linux-headers-3.2.0-3
+Architecture: armel arhf
+Section: devel
+Priority: optional
+Depends: ${misc:Depends}
+#Provides: linux-linaro-shared-headers, linux-linaro-shared-headers-2.6
+Description: Header files related to Linux kernel version 3.2.0
+ This package provides kernel header files for version 3.2.0, for sites
+ that want the latest kernel headers. Please read
+ /usr/share/doc/linux-linaro-shared-headers-3.2.0-3/debian.README.gz for details
+
+Package: linux-linaro-tools-3.2.0-3
+Architecture: armel arhf
+Section: devel
+Priority: optional
+Depends: ${misc:Depends}, ${shlibs:Depends}, linux-tools-common
+Description: Linux kernel tools for version 3.2.0-3
+ This package provides the architecture dependant parts for kernel
+ version locked tools for version 3.2.0-3 on
+ DESC.
