@@ -9,7 +9,7 @@ Build-Conflicts: findutils (= 4.4.1-1ubuntu1)
 Vcs-Git: git://git.linaro.org/ubuntu/linux-linaro.git
 
 Package: linux-headers-PKGVER-ABINUM
-Architecture: armel
+Architecture: armel arhf
 Section: devel
 Priority: optional
 Depends: ${misc:Depends}
@@ -20,7 +20,7 @@ Description: Header files related to Linux kernel version PKGVER
  /usr/share/doc/SRCPKGNAME-headers-PKGVER-ABINUM/debian.README.gz for details
 
 Package: COMMONSRCPKGNAME-tools-PKGVER-ABINUM
-Architecture: armel
+Architecture: armel arhf
 Section: devel
 Priority: optional
 Depends: ${misc:Depends}, ${shlibs:Depends}, linux-tools-common
