@@ -1,4 +1,4 @@
-arch="armel"
+arch="armel armhf"
 supported="ARM Versatile Express"
 desc="ARM Versatile Express with CortexA9x4 tile"
 target="CA9x4"
