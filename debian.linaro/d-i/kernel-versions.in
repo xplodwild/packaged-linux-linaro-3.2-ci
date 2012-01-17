@@ -1,0 +1,5 @@
+# arch	version		flavour		installedname			suffix	bdep
+armel	PKGVER-ABINUM	linaro-vexpress	PKGVER-ABINUM-linaro-vexpress	-
+armhf	PKGVER-ABINUM	linaro-vexpress	PKGVER-ABINUM-linaro-vexpress	-
+# Ports
+# arch	version		flavour		installedname			suffix	bdep
