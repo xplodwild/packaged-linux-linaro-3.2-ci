@@ -9,6 +9,8 @@
 
 /dts-v1/;
 
+/memreserve/ 0xbf000000 0x01000000;
+
 /include/ "skeleton.dtsi"
 
 / {
