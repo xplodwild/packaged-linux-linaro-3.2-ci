@@ -47,7 +47,10 @@ function do_flavour_branches {
         git branch -f $single_flavour_branch HEAD
         git checkout $single_flavour_branch
 
-        sed -i -e "s/^${source_pkg_name}/${source_pkg_name}-$flavour/" ${DEBIAN}/changelog
+	suffix=""
+	test "$ubv" && suffix="-$ubv"
+
+        sed -i -e "s/^${source_pkg_name}/${source_pkg_name}-$flavour$suffix/" ${DEBIAN}/changelog
         git add ${DEBIAN}/changelog
 
 	for arm in armel armhf; do
