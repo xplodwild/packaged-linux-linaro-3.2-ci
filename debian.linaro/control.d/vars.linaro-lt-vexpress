@@ -1,0 +1,8 @@
+arch="armel armhf"
+supported="ARM LINARO-LT-VEXPRESS-A9"
+desc="ARM LINARO-LT-VEXPRESS-A9-based systems"
+target="Targeted at a Versatile Express with A9x4 core tile"
+bootloader="flash-kernel"
+provides=""
+section_image="universe/base"
+do_debug="Yes"
