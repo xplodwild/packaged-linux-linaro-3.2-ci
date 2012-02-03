@@ -1,0 +1,3429 @@
+commit 46b105e25bb35f4a63e0595bd54b8df3ca15b468
+Author: Manoj Iyer <manoj.iyer@canonical.com>
+
+    UBUNTU: SAUCE: (no-up) PM report driver and device suspend/resume times.
+
+diff --git a/drivers/base/Kconfig b/drivers/base/Kconfig
+index 21cf46f..d1f2578 100644
+--- a/drivers/base/Kconfig
++++ b/drivers/base/Kconfig
+@@ -174,4 +174,12 @@ config SYS_HYPERVISOR
+ 
+ source "drivers/base/regmap/Kconfig"
+ 
++config SR_REPORT_TIME_LIMIT
++       int "Default low threshold"
++       depends on PM
++       default 100
++       help
++         Print suspend/resume information for driver/device for time greater
++         then default msec, ie 100 msec.
++
+ endmenu
+diff --git a/drivers/base/power/main.c b/drivers/base/power/main.c
+index c3d2dfc..4675345 100644
+--- a/drivers/base/power/main.c
++++ b/drivers/base/power/main.c
+@@ -396,6 +396,24 @@ static void pm_dev_err(struct device *dev, pm_message_t state, char *info,
+ 		dev_name(dev), pm_verb(state.event), info, error);
+ }
+ 
++static void device_show_time(struct device *dev, ktime_t starttime, pm_message_t state, char *info)
++{
++	ktime_t calltime;
++	s64 usecs64;
++	int usecs;
++
++	calltime = ktime_get();
++	usecs64 = ktime_to_ns(ktime_sub(calltime, starttime));
++	do_div(usecs64, NSEC_PER_USEC);
++	usecs = usecs64;
++	if (usecs == 0)
++		usecs = 1;
++	if ((usecs / USEC_PER_MSEC) > CONFIG_SR_REPORT_TIME_LIMIT)
++		pr_info("PM: %s%s%s of drv:%s dev:%s complete after %ld.%03ld msecs\n", info ?: "", info ? " " : "", pm_verb(state.event),
++		dev_driver_string(dev), dev_name(dev), usecs / USEC_PER_MSEC,
++		usecs % USEC_PER_MSEC);
++}
++
+ static void dpm_show_time(ktime_t starttime, pm_message_t state, char *info)
+ {
+ 	ktime_t calltime;
+@@ -426,6 +444,7 @@ static void dpm_show_time(ktime_t starttime, pm_message_t state, char *info)
+ static int device_resume_noirq(struct device *dev, pm_message_t state)
+ {
+ 	int error = 0;
++	ktime_t starttime = ktime_get();
+ 
+ 	TRACE_DEVICE(dev);
+ 	TRACE_RESUME(0);
+@@ -433,6 +452,7 @@ static int device_resume_noirq(struct device *dev, pm_message_t state)
+ 	if (dev->pm_domain) {
+ 		pm_dev_dbg(dev, state, "EARLY power domain ");
+ 		error = pm_noirq_op(dev, &dev->pm_domain->ops, state);
++		device_show_time(dev, starttime, state, "early");
+ 	} else if (dev->type && dev->type->pm) {
+ 		pm_dev_dbg(dev, state, "EARLY type ");
+ 		error = pm_noirq_op(dev, dev->type->pm, state);
+@@ -515,6 +535,7 @@ static int device_resume(struct device *dev, pm_message_t state, bool async)
+ {
+ 	int error = 0;
+ 	bool put = false;
++	ktime_t starttime = ktime_get();
+ 
+ 	TRACE_DEVICE(dev);
+ 	TRACE_RESUME(0);
+@@ -568,6 +589,7 @@ static int device_resume(struct device *dev, pm_message_t state, bool async)
+ 		}
+ 	}
+ 
++	device_show_time(dev, starttime, state, NULL);
+  End:
+ 	dev->power.is_suspended = false;
+ 
+@@ -764,6 +786,7 @@ static pm_message_t resume_event(pm_message_t sleep_state)
+ static int device_suspend_noirq(struct device *dev, pm_message_t state)
+ {
+ 	int error;
++	ktime_t starttime = ktime_get();
+ 
+ 	if (dev->pm_domain) {
+ 		pm_dev_dbg(dev, state, "LATE power domain ");
+@@ -785,6 +808,7 @@ static int device_suspend_noirq(struct device *dev, pm_message_t state)
+ 		error = pm_noirq_op(dev, dev->bus->pm, state);
+ 		if (error)
+ 			return error;
++		device_show_time(dev, starttime, state, "late");
+ 	}
+ 
+ 	return 0;
+@@ -865,6 +889,7 @@ static int legacy_suspend(struct device *dev, pm_message_t state,
+ static int __device_suspend(struct device *dev, pm_message_t state, bool async)
+ {
+ 	int error = 0;
++	ktime_t starttime = ktime_get();
+ 
+ 	dpm_wait_for_children(dev, async);
+ 
+@@ -917,6 +942,7 @@ static int __device_suspend(struct device *dev, pm_message_t state, bool async)
+ 		}
+ 	}
+ 
++	device_show_time(dev, starttime, state, NULL);
+  End:
+ 	if (!error) {
+ 		dev->power.is_suspended = true;
+commit ccee4f7b79a1f1404cd70128564376d3e1b61dcb
+Author: Tony Lindgren <tony@atomide.com>
+
+    ARM: 7159/1: OMAP: Introduce local common.h files
+
+diff --git a/arch/arm/mach-omap1/board-ams-delta.c b/arch/arm/mach-omap1/board-ams-delta.c
+index b0f15d2..af791196 100644
+--- a/arch/arm/mach-omap1/board-ams-delta.c
++++ b/arch/arm/mach-omap1/board-ams-delta.c
+@@ -35,7 +35,7 @@
+ #include <plat/mux.h>
+ #include <plat/usb.h>
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <mach/camera.h>
+ 
+ #include <mach/ams-delta-fiq.h>
+diff --git a/arch/arm/mach-omap1/board-fsample.c b/arch/arm/mach-omap1/board-fsample.c
+index 2317827..b9c4c0f 100644
+--- a/arch/arm/mach-omap1/board-fsample.c
++++ b/arch/arm/mach-omap1/board-fsample.c
+@@ -32,7 +32,7 @@
+ #include <plat/flash.h>
+ #include <plat/fpga.h>
+ #include <plat/keypad.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/board.h>
+ 
+ /* fsample is pretty close to p2-sample */
+diff --git a/arch/arm/mach-omap1/board-generic.c b/arch/arm/mach-omap1/board-generic.c
+index dc5b75d..7f41d7a 100644
+--- a/arch/arm/mach-omap1/board-generic.c
++++ b/arch/arm/mach-omap1/board-generic.c
+@@ -25,7 +25,7 @@
+ #include <plat/mux.h>
+ #include <plat/usb.h>
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ 
+ /* assume no Mini-AB port */
+ 
+diff --git a/arch/arm/mach-omap1/board-h2.c b/arch/arm/mach-omap1/board-h2.c
+index b334b14..7933b97 100644
+--- a/arch/arm/mach-omap1/board-h2.c
++++ b/arch/arm/mach-omap1/board-h2.c
+@@ -43,7 +43,7 @@
+ #include <plat/irda.h>
+ #include <plat/usb.h>
+ #include <plat/keypad.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/flash.h>
+ 
+ #include "board-h2.h"
+diff --git a/arch/arm/mach-omap1/board-h3.c b/arch/arm/mach-omap1/board-h3.c
+index 74ebe72..04be2f8 100644
+--- a/arch/arm/mach-omap1/board-h3.c
++++ b/arch/arm/mach-omap1/board-h3.c
+@@ -45,7 +45,7 @@
+ #include <plat/usb.h>
+ #include <plat/keypad.h>
+ #include <plat/dma.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/flash.h>
+ 
+ #include "board-h3.h"
+diff --git a/arch/arm/mach-omap1/board-htcherald.c b/arch/arm/mach-omap1/board-htcherald.c
+index 3e91baa..46fcfeb 100644
+--- a/arch/arm/mach-omap1/board-htcherald.c
++++ b/arch/arm/mach-omap1/board-htcherald.c
+@@ -41,7 +41,7 @@
+ #include <asm/mach/arch.h>
+ 
+ #include <plat/omap7xx.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/board.h>
+ #include <plat/keypad.h>
+ #include <plat/usb.h>
+diff --git a/arch/arm/mach-omap1/board-innovator.c b/arch/arm/mach-omap1/board-innovator.c
+index 273153d..f99d11d 100644
+--- a/arch/arm/mach-omap1/board-innovator.c
++++ b/arch/arm/mach-omap1/board-innovator.c
+@@ -37,7 +37,7 @@
+ #include <plat/tc.h>
+ #include <plat/usb.h>
+ #include <plat/keypad.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/mmc.h>
+ 
+ /* At OMAP1610 Innovator the Ethernet is directly connected to CS1 */
+diff --git a/arch/arm/mach-omap1/board-nokia770.c b/arch/arm/mach-omap1/board-nokia770.c
+index 6798b84..c643423 100644
+--- a/arch/arm/mach-omap1/board-nokia770.c
++++ b/arch/arm/mach-omap1/board-nokia770.c
+@@ -30,7 +30,7 @@
+ #include <plat/usb.h>
+ #include <plat/board.h>
+ #include <plat/keypad.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/hwa742.h>
+ #include <plat/lcd_mipid.h>
+ #include <plat/mmc.h>
+diff --git a/arch/arm/mach-omap1/board-osk.c b/arch/arm/mach-omap1/board-osk.c
+index c385927..a409dfc 100644
+--- a/arch/arm/mach-omap1/board-osk.c
++++ b/arch/arm/mach-omap1/board-osk.c
+@@ -51,7 +51,7 @@
+ #include <plat/usb.h>
+ #include <plat/mux.h>
+ #include <plat/tc.h>
+-#include <plat/common.h>
++#include "common.h"
+ 
+ /* At OMAP5912 OSK the Ethernet is directly connected to CS1 */
+ #define OMAP_OSK_ETHR_START		0x04800300
+diff --git a/arch/arm/mach-omap1/board-palmte.c b/arch/arm/mach-omap1/board-palmte.c
+index f9c44cb..105292d 100644
+--- a/arch/arm/mach-omap1/board-palmte.c
++++ b/arch/arm/mach-omap1/board-palmte.c
+@@ -41,7 +41,7 @@
+ #include <plat/board.h>
+ #include <plat/irda.h>
+ #include <plat/keypad.h>
+-#include <plat/common.h>
++#include "common.h"
+ 
+ #define PALMTE_USBDETECT_GPIO	0
+ #define PALMTE_USB_OR_DC_GPIO	1
+diff --git a/arch/arm/mach-omap1/board-palmtt.c b/arch/arm/mach-omap1/board-palmtt.c
+index 11a9853..387a900 100644
+--- a/arch/arm/mach-omap1/board-palmtt.c
++++ b/arch/arm/mach-omap1/board-palmtt.c
+@@ -39,7 +39,7 @@
+ #include <plat/board.h>
+ #include <plat/irda.h>
+ #include <plat/keypad.h>
+-#include <plat/common.h>
++#include "common.h"
+ 
+ #include <linux/spi/spi.h>
+ #include <linux/spi/ads7846.h>
+diff --git a/arch/arm/mach-omap1/board-palmz71.c b/arch/arm/mach-omap1/board-palmz71.c
+index 4206157..df6d15e 100644
+--- a/arch/arm/mach-omap1/board-palmz71.c
++++ b/arch/arm/mach-omap1/board-palmz71.c
+@@ -41,7 +41,7 @@
+ #include <plat/board.h>
+ #include <plat/irda.h>
+ #include <plat/keypad.h>
+-#include <plat/common.h>
++#include "common.h"
+ 
+ #include <linux/spi/spi.h>
+ #include <linux/spi/ads7846.h>
+diff --git a/arch/arm/mach-omap1/board-perseus2.c b/arch/arm/mach-omap1/board-perseus2.c
+index 203ae07..57ecd7e 100644
+--- a/arch/arm/mach-omap1/board-perseus2.c
++++ b/arch/arm/mach-omap1/board-perseus2.c
+@@ -32,7 +32,7 @@
+ #include <plat/fpga.h>
+ #include <plat/flash.h>
+ #include <plat/keypad.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/board.h>
+ 
+ static const unsigned int p2_keymap[] = {
+diff --git a/arch/arm/mach-omap1/board-sx1.c b/arch/arm/mach-omap1/board-sx1.c
+index 092a4c0..774ae39 100644
+--- a/arch/arm/mach-omap1/board-sx1.c
++++ b/arch/arm/mach-omap1/board-sx1.c
+@@ -40,7 +40,7 @@
+ #include <plat/usb.h>
+ #include <plat/tc.h>
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/keypad.h>
+ #include <plat/board-sx1.h>
+ 
+diff --git a/arch/arm/mach-omap1/board-voiceblue.c b/arch/arm/mach-omap1/board-voiceblue.c
+index 61ed6cd..7721c14 100644
+--- a/arch/arm/mach-omap1/board-voiceblue.c
++++ b/arch/arm/mach-omap1/board-voiceblue.c
+@@ -34,7 +34,7 @@
+ #include <asm/mach/map.h>
+ 
+ #include <plat/board-voiceblue.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/flash.h>
+ #include <plat/mux.h>
+ #include <plat/tc.h>
+diff --git a/arch/arm/mach-omap1/common.h b/arch/arm/mach-omap1/common.h
+new file mode 100644
+index 0000000..52c4eda
+--- /dev/null
++++ b/arch/arm/mach-omap1/common.h
+@@ -0,0 +1,61 @@
++/*
++ *
++ * Header for code common to all OMAP1 machines.
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License as published by the
++ * Free Software Foundation; either version 2 of the License, or (at your
++ * option) any later version.
++ *
++ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
++ * NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
++ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
++ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
++ * USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
++ * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
++ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ * You should have received a copy of the  GNU General Public License along
++ * with this program; if not, write  to the Free Software Foundation, Inc.,
++ * 675 Mass Ave, Cambridge, MA 02139, USA.
++ */
++
++#ifndef __ARCH_ARM_MACH_OMAP1_COMMON_H
++#define __ARCH_ARM_MACH_OMAP1_COMMON_H
++
++#include <plat/common.h>
++
++#if defined(CONFIG_ARCH_OMAP730) || defined(CONFIG_ARCH_OMAP850)
++void omap7xx_map_io(void);
++#else
++static inline void omap7xx_map_io(void)
++{
++}
++#endif
++
++#ifdef CONFIG_ARCH_OMAP15XX
++void omap15xx_map_io(void);
++#else
++static inline void omap15xx_map_io(void)
++{
++}
++#endif
++
++#ifdef CONFIG_ARCH_OMAP16XX
++void omap16xx_map_io(void);
++#else
++static inline void omap16xx_map_io(void)
++{
++}
++#endif
++
++void omap1_init_early(void);
++void omap1_init_irq(void);
++
++extern struct sys_timer omap1_timer;
++extern bool omap_32k_timer_init(void);
++
++#endif /* __ARCH_ARM_MACH_OMAP1_COMMON_H */
+diff --git a/arch/arm/mach-omap1/devices.c b/arch/arm/mach-omap1/devices.c
+index 475cb2f..1d76a63 100644
+--- a/arch/arm/mach-omap1/devices.c
++++ b/arch/arm/mach-omap1/devices.c
+@@ -22,7 +22,7 @@
+ #include <mach/hardware.h>
+ #include <asm/mach/map.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/tc.h>
+ #include <plat/board.h>
+ #include <plat/mux.h>
+diff --git a/arch/arm/mach-omap1/time.c b/arch/arm/mach-omap1/time.c
+index a183777..485a21d 100644
+--- a/arch/arm/mach-omap1/time.c
++++ b/arch/arm/mach-omap1/time.c
+@@ -54,7 +54,7 @@
+ #include <asm/mach/irq.h>
+ #include <asm/mach/time.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ 
+ #ifdef CONFIG_OMAP_MPU_TIMER
+ 
+diff --git a/arch/arm/mach-omap1/timer32k.c b/arch/arm/mach-omap1/timer32k.c
+index 96604a5..9a54ef4 100644
+--- a/arch/arm/mach-omap1/timer32k.c
++++ b/arch/arm/mach-omap1/timer32k.c
+@@ -52,7 +52,7 @@
+ #include <asm/irq.h>
+ #include <asm/mach/irq.h>
+ #include <asm/mach/time.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/dmtimer.h>
+ 
+ /*
+diff --git a/arch/arm/mach-omap2/board-2430sdp.c b/arch/arm/mach-omap2/board-2430sdp.c
+index d704f0a..a17a6c4 100644
+--- a/arch/arm/mach-omap2/board-2430sdp.c
++++ b/arch/arm/mach-omap2/board-2430sdp.c
+@@ -34,7 +34,7 @@
+ #include <asm/mach/map.h>
+ 
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/gpmc.h>
+ #include <plat/usb.h>
+ #include <plat/gpmc-smc91x.h>
+diff --git a/arch/arm/mach-omap2/board-3430sdp.c b/arch/arm/mach-omap2/board-3430sdp.c
+index 77142c1..670919c 100644
+--- a/arch/arm/mach-omap2/board-3430sdp.c
++++ b/arch/arm/mach-omap2/board-3430sdp.c
+@@ -33,7 +33,7 @@
+ #include <plat/mcspi.h>
+ #include <plat/board.h>
+ #include <plat/usb.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/dma.h>
+ #include <plat/gpmc.h>
+ #include <video/omapdss.h>
+diff --git a/arch/arm/mach-omap2/board-3630sdp.c b/arch/arm/mach-omap2/board-3630sdp.c
+index f552305..63f4b4f 100644
+--- a/arch/arm/mach-omap2/board-3630sdp.c
++++ b/arch/arm/mach-omap2/board-3630sdp.c
+@@ -16,7 +16,7 @@
+ #include <asm/mach-types.h>
+ #include <asm/mach/arch.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/board.h>
+ #include <plat/gpmc-smc91x.h>
+ #include <plat/usb.h>
+diff --git a/arch/arm/mach-omap2/board-4430sdp.c b/arch/arm/mach-omap2/board-4430sdp.c
+index 5156468..cff2e32 100644
+--- a/arch/arm/mach-omap2/board-4430sdp.c
++++ b/arch/arm/mach-omap2/board-4430sdp.c
+@@ -27,13 +27,12 @@
+ #include <linux/leds_pwm.h>
+ 
+ #include <mach/hardware.h>
+-#include <mach/omap4-common.h>
+ #include <asm/mach-types.h>
+ #include <asm/mach/arch.h>
+ #include <asm/mach/map.h>
+ 
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/usb.h>
+ #include <plat/mmc.h>
+ #include <plat/omap4-keypad.h>
+diff --git a/arch/arm/mach-omap2/board-am3517crane.c b/arch/arm/mach-omap2/board-am3517crane.c
+index 7834536..2570475 100644
+--- a/arch/arm/mach-omap2/board-am3517crane.c
++++ b/arch/arm/mach-omap2/board-am3517crane.c
+@@ -27,7 +27,7 @@
+ #include <asm/mach/map.h>
+ 
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/usb.h>
+ 
+ #include "mux.h"
+diff --git a/arch/arm/mach-omap2/board-am3517evm.c b/arch/arm/mach-omap2/board-am3517evm.c
+index d314f03..56ea011 100644
+--- a/arch/arm/mach-omap2/board-am3517evm.c
++++ b/arch/arm/mach-omap2/board-am3517evm.c
+@@ -32,7 +32,7 @@
+ #include <asm/mach/map.h>
+ 
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/usb.h>
+ #include <video/omapdss.h>
+ #include <video/omap-panel-generic-dpi.h>
+diff --git a/arch/arm/mach-omap2/board-apollon.c b/arch/arm/mach-omap2/board-apollon.c
+index de8134b..9aea158 100644
+--- a/arch/arm/mach-omap2/board-apollon.c
++++ b/arch/arm/mach-omap2/board-apollon.c
+@@ -37,7 +37,7 @@
+ #include <plat/led.h>
+ #include <plat/usb.h>
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/gpmc.h>
+ 
+ #include <video/omapdss.h>
+diff --git a/arch/arm/mach-omap2/board-cm-t35.c b/arch/arm/mach-omap2/board-cm-t35.c
+index bd1bcac..e1de33e 100644
+--- a/arch/arm/mach-omap2/board-cm-t35.c
++++ b/arch/arm/mach-omap2/board-cm-t35.c
+@@ -37,7 +37,7 @@
+ #include <asm/mach/map.h>
+ 
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/nand.h>
+ #include <plat/gpmc.h>
+ #include <plat/usb.h>
+diff --git a/arch/arm/mach-omap2/board-cm-t3517.c b/arch/arm/mach-omap2/board-cm-t3517.c
+index 3f4dc66..952df9b 100644
+--- a/arch/arm/mach-omap2/board-cm-t3517.c
++++ b/arch/arm/mach-omap2/board-cm-t3517.c
+@@ -39,7 +39,7 @@
+ #include <asm/mach/map.h>
+ 
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/usb.h>
+ #include <plat/nand.h>
+ #include <plat/gpmc.h>
+diff --git a/arch/arm/mach-omap2/board-devkit8000.c b/arch/arm/mach-omap2/board-devkit8000.c
+index 90154e4..99e6e7a 100644
+--- a/arch/arm/mach-omap2/board-devkit8000.c
++++ b/arch/arm/mach-omap2/board-devkit8000.c
+@@ -41,7 +41,7 @@
+ #include <asm/mach/flash.h>
+ 
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/gpmc.h>
+ #include <plat/nand.h>
+ #include <plat/usb.h>
+diff --git a/arch/arm/mach-omap2/board-generic.c b/arch/arm/mach-omap2/board-generic.c
+index fb55fa3d..a89d723 100644
+--- a/arch/arm/mach-omap2/board-generic.c
++++ b/arch/arm/mach-omap2/board-generic.c
+@@ -20,8 +20,7 @@
+ #include <asm/mach/arch.h>
+ 
+ #include <plat/board.h>
+-#include <plat/common.h>
+-#include <mach/omap4-common.h>
++#include "common.h"
+ #include "common-board-devices.h"
+ 
+ /*
+diff --git a/arch/arm/mach-omap2/board-h4.c b/arch/arm/mach-omap2/board-h4.c
+index 8b351d9..199a174 100644
+--- a/arch/arm/mach-omap2/board-h4.c
++++ b/arch/arm/mach-omap2/board-h4.c
+@@ -34,7 +34,7 @@
+ 
+ #include <plat/usb.h>
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/menelaus.h>
+ #include <plat/dma.h>
+ #include <plat/gpmc.h>
+diff --git a/arch/arm/mach-omap2/board-igep0020.c b/arch/arm/mach-omap2/board-igep0020.c
+index d0a3f78..6434bdc 100644
+--- a/arch/arm/mach-omap2/board-igep0020.c
++++ b/arch/arm/mach-omap2/board-igep0020.c
+@@ -28,7 +28,7 @@
+ #include <asm/mach/arch.h>
+ 
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/gpmc.h>
+ #include <plat/usb.h>
+ #include <video/omapdss.h>
+diff --git a/arch/arm/mach-omap2/board-ldp.c b/arch/arm/mach-omap2/board-ldp.c
+index e179da0..e75102a 100644
+--- a/arch/arm/mach-omap2/board-ldp.c
++++ b/arch/arm/mach-omap2/board-ldp.c
+@@ -36,7 +36,7 @@
+ 
+ #include <plat/mcspi.h>
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/gpmc.h>
+ #include <mach/board-zoom.h>
+ 
+diff --git a/arch/arm/mach-omap2/board-n8x0.c b/arch/arm/mach-omap2/board-n8x0.c
+index e9d5f4a..7368614 100644
+--- a/arch/arm/mach-omap2/board-n8x0.c
++++ b/arch/arm/mach-omap2/board-n8x0.c
+@@ -26,7 +26,7 @@
+ #include <asm/mach-types.h>
+ 
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/menelaus.h>
+ #include <mach/irqs.h>
+ #include <plat/mcspi.h>
+diff --git a/arch/arm/mach-omap2/board-omap3beagle.c b/arch/arm/mach-omap2/board-omap3beagle.c
+index 4a71cb7..1843e14 100644
+--- a/arch/arm/mach-omap2/board-omap3beagle.c
++++ b/arch/arm/mach-omap2/board-omap3beagle.c
+@@ -40,7 +40,7 @@
+ #include <asm/mach/flash.h>
+ 
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <video/omapdss.h>
+ #include <video/omap-panel-dvi.h>
+ #include <plat/gpmc.h>
+diff --git a/arch/arm/mach-omap2/board-omap3evm.c b/arch/arm/mach-omap2/board-omap3evm.c
+index ec00b2e..1653d18 100644
+--- a/arch/arm/mach-omap2/board-omap3evm.c
++++ b/arch/arm/mach-omap2/board-omap3evm.c
+@@ -43,7 +43,7 @@
+ 
+ #include <plat/board.h>
+ #include <plat/usb.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/mcspi.h>
+ #include <video/omapdss.h>
+ #include <video/omap-panel-dvi.h>
+diff --git a/arch/arm/mach-omap2/board-omap3logic.c b/arch/arm/mach-omap2/board-omap3logic.c
+index 7c0f193..1b2a776 100644
+--- a/arch/arm/mach-omap2/board-omap3logic.c
++++ b/arch/arm/mach-omap2/board-omap3logic.c
+@@ -40,7 +40,7 @@
+ 
+ #include <plat/mux.h>
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/gpmc-smsc911x.h>
+ #include <plat/gpmc.h>
+ #include <plat/sdrc.h>
+diff --git a/arch/arm/mach-omap2/board-omap3pandora.c b/arch/arm/mach-omap2/board-omap3pandora.c
+index f7811f4..6297e81 100644
+--- a/arch/arm/mach-omap2/board-omap3pandora.c
++++ b/arch/arm/mach-omap2/board-omap3pandora.c
+@@ -41,7 +41,7 @@
+ #include <asm/mach/map.h>
+ 
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <mach/hardware.h>
+ #include <plat/mcspi.h>
+ #include <plat/usb.h>
+diff --git a/arch/arm/mach-omap2/board-omap3stalker.c b/arch/arm/mach-omap2/board-omap3stalker.c
+index ddb7d66..ab22647 100644
+--- a/arch/arm/mach-omap2/board-omap3stalker.c
++++ b/arch/arm/mach-omap2/board-omap3stalker.c
+@@ -35,7 +35,7 @@
+ #include <asm/mach/flash.h>
+ 
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/gpmc.h>
+ #include <plat/nand.h>
+ #include <plat/usb.h>
+diff --git a/arch/arm/mach-omap2/board-omap3touchbook.c b/arch/arm/mach-omap2/board-omap3touchbook.c
+index a2d0d19..2741a34 100644
+--- a/arch/arm/mach-omap2/board-omap3touchbook.c
++++ b/arch/arm/mach-omap2/board-omap3touchbook.c
+@@ -44,7 +44,7 @@
+ #include <asm/mach/flash.h>
+ 
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/gpmc.h>
+ #include <plat/nand.h>
+ #include <plat/usb.h>
+diff --git a/arch/arm/mach-omap2/board-omap4panda.c b/arch/arm/mach-omap2/board-omap4panda.c
+index a8c2c42..7722d4d 100644
+--- a/arch/arm/mach-omap2/board-omap4panda.c
++++ b/arch/arm/mach-omap2/board-omap4panda.c
+@@ -30,14 +30,13 @@
+ #include <linux/wl12xx.h>
+ 
+ #include <mach/hardware.h>
+-#include <mach/omap4-common.h>
+ #include <asm/mach-types.h>
+ #include <asm/mach/arch.h>
+ #include <asm/mach/map.h>
+ #include <video/omapdss.h>
+ 
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/usb.h>
+ #include <plat/mmc.h>
+ #include <video/omap-panel-dvi.h>
+diff --git a/arch/arm/mach-omap2/board-overo.c b/arch/arm/mach-omap2/board-overo.c
+index 4cf7aea..26c5cbb 100644
+--- a/arch/arm/mach-omap2/board-overo.c
++++ b/arch/arm/mach-omap2/board-overo.c
+@@ -43,7 +43,7 @@
+ #include <asm/mach/map.h>
+ 
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <video/omapdss.h>
+ #include <video/omap-panel-generic-dpi.h>
+ #include <video/omap-panel-dvi.h>
+diff --git a/arch/arm/mach-omap2/board-rm680.c b/arch/arm/mach-omap2/board-rm680.c
+index 616fb39..6ffb640 100644
+--- a/arch/arm/mach-omap2/board-rm680.c
++++ b/arch/arm/mach-omap2/board-rm680.c
+@@ -25,7 +25,7 @@
+ #include <plat/mmc.h>
+ #include <plat/usb.h>
+ #include <plat/gpmc.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/onenand.h>
+ 
+ #include "mux.h"
+diff --git a/arch/arm/mach-omap2/board-rx51-peripherals.c b/arch/arm/mach-omap2/board-rx51-peripherals.c
+index c15c5c9..108fee6 100644
+--- a/arch/arm/mach-omap2/board-rx51-peripherals.c
++++ b/arch/arm/mach-omap2/board-rx51-peripherals.c
+@@ -27,7 +27,7 @@
+ 
+ #include <plat/mcspi.h>
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/dma.h>
+ #include <plat/gpmc.h>
+ #include <plat/onenand.h>
+diff --git a/arch/arm/mach-omap2/board-rx51.c b/arch/arm/mach-omap2/board-rx51.c
+index 4af7c4b..8477313 100644
+--- a/arch/arm/mach-omap2/board-rx51.c
++++ b/arch/arm/mach-omap2/board-rx51.c
+@@ -25,7 +25,7 @@
+ 
+ #include <plat/mcspi.h>
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/dma.h>
+ #include <plat/gpmc.h>
+ #include <plat/usb.h>
+diff --git a/arch/arm/mach-omap2/board-ti8168evm.c b/arch/arm/mach-omap2/board-ti8168evm.c
+index e6ee884..8402b39 100644
+--- a/arch/arm/mach-omap2/board-ti8168evm.c
++++ b/arch/arm/mach-omap2/board-ti8168evm.c
+@@ -22,7 +22,7 @@
+ 
+ #include <plat/irqs.h>
+ #include <plat/board.h>
+-#include <plat/common.h>
++#include "common.h"
+ 
+ static struct omap_board_config_kernel ti8168_evm_config[] __initdata = {
+ };
+diff --git a/arch/arm/mach-omap2/board-zoom-peripherals.c b/arch/arm/mach-omap2/board-zoom-peripherals.c
+index 6d0aa4f..8d7ce11 100644
+--- a/arch/arm/mach-omap2/board-zoom-peripherals.c
++++ b/arch/arm/mach-omap2/board-zoom-peripherals.c
+@@ -24,7 +24,7 @@
+ #include <asm/mach/arch.h>
+ #include <asm/mach/map.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/usb.h>
+ 
+ #include <mach/board-zoom.h>
+diff --git a/arch/arm/mach-omap2/board-zoom.c b/arch/arm/mach-omap2/board-zoom.c
+index be6684d..bd58f92 100644
+--- a/arch/arm/mach-omap2/board-zoom.c
++++ b/arch/arm/mach-omap2/board-zoom.c
+@@ -21,7 +21,7 @@
+ #include <asm/mach-types.h>
+ #include <asm/mach/arch.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/board.h>
+ #include <plat/usb.h>
+ 
+diff --git a/arch/arm/mach-omap2/cm2xxx_3xxx.c b/arch/arm/mach-omap2/cm2xxx_3xxx.c
+index 38830d8..04d39cd 100644
+--- a/arch/arm/mach-omap2/cm2xxx_3xxx.c
++++ b/arch/arm/mach-omap2/cm2xxx_3xxx.c
+@@ -18,7 +18,7 @@
+ #include <linux/err.h>
+ #include <linux/io.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ 
+ #include "cm.h"
+ #include "cm2xxx_3xxx.h"
+diff --git a/arch/arm/mach-omap2/cm44xx.c b/arch/arm/mach-omap2/cm44xx.c
+index e96f53e..6a83630 100644
+--- a/arch/arm/mach-omap2/cm44xx.c
++++ b/arch/arm/mach-omap2/cm44xx.c
+@@ -18,7 +18,7 @@
+ #include <linux/err.h>
+ #include <linux/io.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ 
+ #include "cm.h"
+ #include "cm1_44xx.h"
+diff --git a/arch/arm/mach-omap2/cminst44xx.c b/arch/arm/mach-omap2/cminst44xx.c
+index eb2a472..6204dea 100644
+--- a/arch/arm/mach-omap2/cminst44xx.c
++++ b/arch/arm/mach-omap2/cminst44xx.c
+@@ -20,7 +20,7 @@
+ #include <linux/err.h>
+ #include <linux/io.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ 
+ #include "cm.h"
+ #include "cm1_44xx.h"
+diff --git a/arch/arm/mach-omap2/common.c b/arch/arm/mach-omap2/common.c
+index 110e5b9..684b8a7 100644
+--- a/arch/arm/mach-omap2/common.c
++++ b/arch/arm/mach-omap2/common.c
+@@ -17,7 +17,7 @@
+ #include <linux/clk.h>
+ #include <linux/io.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/board.h>
+ #include <plat/mux.h>
+ 
+diff --git a/arch/arm/mach-omap2/common.h b/arch/arm/mach-omap2/common.h
+new file mode 100644
+index 0000000..950b39d
+--- /dev/null
++++ b/arch/arm/mach-omap2/common.h
+@@ -0,0 +1,185 @@
++/*
++ * Header for code common to all OMAP2+ machines.
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License as published by the
++ * Free Software Foundation; either version 2 of the License, or (at your
++ * option) any later version.
++ *
++ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
++ * NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
++ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
++ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
++ * USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
++ * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
++ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ * You should have received a copy of the  GNU General Public License along
++ * with this program; if not, write  to the Free Software Foundation, Inc.,
++ * 675 Mass Ave, Cambridge, MA 02139, USA.
++ */
++
++#ifndef __ARCH_ARM_MACH_OMAP2PLUS_COMMON_H
++#define __ARCH_ARM_MACH_OMAP2PLUS_COMMON_H
++
++#include <linux/delay.h>
++#include <plat/common.h>
++
++#ifdef CONFIG_SOC_OMAP2420
++extern void omap242x_map_common_io(void);
++#else
++static inline void omap242x_map_common_io(void)
++{
++}
++#endif
++
++#ifdef CONFIG_SOC_OMAP2430
++extern void omap243x_map_common_io(void);
++#else
++static inline void omap243x_map_common_io(void)
++{
++}
++#endif
++
++#ifdef CONFIG_ARCH_OMAP3
++extern void omap34xx_map_common_io(void);
++#else
++static inline void omap34xx_map_common_io(void)
++{
++}
++#endif
++
++#ifdef CONFIG_SOC_OMAPTI816X
++extern void omapti816x_map_common_io(void);
++#else
++static inline void omapti816x_map_common_io(void)
++{
++}
++#endif
++
++#ifdef CONFIG_ARCH_OMAP4
++extern void omap44xx_map_common_io(void);
++#else
++static inline void omap44xx_map_common_io(void)
++{
++}
++#endif
++
++extern void omap2_init_common_infrastructure(void);
++
++extern struct sys_timer omap2_timer;
++extern struct sys_timer omap3_timer;
++extern struct sys_timer omap3_secure_timer;
++extern struct sys_timer omap4_timer;
++
++void omap2420_init_early(void);
++void omap2430_init_early(void);
++void omap3430_init_early(void);
++void omap35xx_init_early(void);
++void omap3630_init_early(void);
++void omap3_init_early(void);	/* Do not use this one */
++void am35xx_init_early(void);
++void ti816x_init_early(void);
++void omap4430_init_early(void);
++
++/*
++ * IO bases for various OMAP processors
++ * Except the tap base, rest all the io bases
++ * listed are physical addresses.
++ */
++struct omap_globals {
++	u32		class;		/* OMAP class to detect */
++	void __iomem	*tap;		/* Control module ID code */
++	void __iomem	*sdrc;           /* SDRAM Controller */
++	void __iomem	*sms;            /* SDRAM Memory Scheduler */
++	void __iomem	*ctrl;           /* System Control Module */
++	void __iomem	*ctrl_pad;	/* PAD Control Module */
++	void __iomem	*prm;            /* Power and Reset Management */
++	void __iomem	*cm;             /* Clock Management */
++	void __iomem	*cm2;
++};
++
++void omap2_set_globals_242x(void);
++void omap2_set_globals_243x(void);
++void omap2_set_globals_3xxx(void);
++void omap2_set_globals_443x(void);
++void omap2_set_globals_ti816x(void);
++
++/* These get called from omap2_set_globals_xxxx(), do not call these */
++void omap2_set_globals_tap(struct omap_globals *);
++void omap2_set_globals_sdrc(struct omap_globals *);
++void omap2_set_globals_control(struct omap_globals *);
++void omap2_set_globals_prcm(struct omap_globals *);
++
++void omap242x_map_io(void);
++void omap243x_map_io(void);
++void omap3_map_io(void);
++void omap4_map_io(void);
++
++/**
++ * omap_test_timeout - busy-loop, testing a condition
++ * @cond: condition to test until it evaluates to true
++ * @timeout: maximum number of microseconds in the timeout
++ * @index: loop index (integer)
++ *
++ * Loop waiting for @cond to become true or until at least @timeout
++ * microseconds have passed.  To use, define some integer @index in the
++ * calling code.  After running, if @index == @timeout, then the loop has
++ * timed out.
++ */
++#define omap_test_timeout(cond, timeout, index)			\
++({								\
++	for (index = 0; index < timeout; index++) {		\
++		if (cond)					\
++			break;					\
++		udelay(1);					\
++	}							\
++})
++
++extern struct device *omap2_get_mpuss_device(void);
++extern struct device *omap2_get_iva_device(void);
++extern struct device *omap2_get_l3_device(void);
++extern struct device *omap4_get_dsp_device(void);
++
++void omap2_init_irq(void);
++void omap3_init_irq(void);
++void ti816x_init_irq(void);
++extern int omap_irq_pending(void);
++void omap_intc_save_context(void);
++void omap_intc_restore_context(void);
++void omap3_intc_suspend(void);
++void omap3_intc_prepare_idle(void);
++void omap3_intc_resume_idle(void);
++
++/*
++ * wfi used in low power code. Directly opcode is used instead
++ * of instruction to avoid mulit-omap build break
++ */
++#ifdef CONFIG_THUMB2_KERNEL
++#define do_wfi() __asm__ __volatile__ ("wfi" : : : "memory")
++#else
++#define do_wfi()			\
++		__asm__ __volatile__ (".word	0xe320f003" : : : "memory")
++#endif
++
++#ifdef CONFIG_CACHE_L2X0
++extern void __iomem *l2cache_base;
++#endif
++
++extern void __iomem *gic_dist_base_addr;
++
++extern void __init gic_init_irq(void);
++extern void omap_smc1(u32 fn, u32 arg);
++
++#ifdef CONFIG_SMP
++/* Needed for secondary core boot */
++extern void omap_secondary_startup(void);
++extern u32 omap_modify_auxcoreboot0(u32 set_mask, u32 clear_mask);
++extern void omap_auxcoreboot_addr(u32 cpu_addr);
++extern u32 omap_read_auxcoreboot0(void);
++#endif
++
++#endif /* __ARCH_ARM_MACH_OMAP2PLUS_COMMON_H */
+diff --git a/arch/arm/mach-omap2/control.c b/arch/arm/mach-omap2/control.c
+index e34d27f..114c037 100644
+--- a/arch/arm/mach-omap2/control.c
++++ b/arch/arm/mach-omap2/control.c
+@@ -15,7 +15,7 @@
+ #include <linux/kernel.h>
+ #include <linux/io.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/sdrc.h>
+ 
+ #include "cm-regbits-34xx.h"
+diff --git a/arch/arm/mach-omap2/i2c.c b/arch/arm/mach-omap2/i2c.c
+index ace9994..a12e224 100644
+--- a/arch/arm/mach-omap2/i2c.c
++++ b/arch/arm/mach-omap2/i2c.c
+@@ -21,7 +21,7 @@
+ 
+ #include <plat/cpu.h>
+ #include <plat/i2c.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/omap_hwmod.h>
+ 
+ #include "mux.h"
+diff --git a/arch/arm/mach-omap2/id.c b/arch/arm/mach-omap2/id.c
+index 7f47092..27ad722 100644
+--- a/arch/arm/mach-omap2/id.c
++++ b/arch/arm/mach-omap2/id.c
+@@ -21,7 +21,7 @@
+ 
+ #include <asm/cputype.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/cpu.h>
+ 
+ #include <mach/id.h>
+diff --git a/arch/arm/mach-omap2/include/mach/omap4-common.h b/arch/arm/mach-omap2/include/mach/omap4-common.h
+deleted file mode 100644
+index e4bd87619..0000000
+--- a/arch/arm/mach-omap2/include/mach/omap4-common.h
++++ /dev/null
+@@ -1,43 +0,0 @@
+-/*
+- * omap4-common.h: OMAP4 specific common header file
+- *
+- * Copyright (C) 2010 Texas Instruments, Inc.
+- *
+- * Author:
+- *	Santosh Shilimkar <santosh.shilimkar@ti.com>
+- *
+- * This program is free software; you can redistribute it and/or modify
+- * it under the terms of the GNU General Public License version 2 as
+- * published by the Free Software Foundation.
+- */
+-#ifndef OMAP_ARCH_OMAP4_COMMON_H
+-#define OMAP_ARCH_OMAP4_COMMON_H
+-
+-/*
+- * wfi used in low power code. Directly opcode is used instead
+- * of instruction to avoid mulit-omap build break
+- */
+-#ifdef CONFIG_THUMB2_KERNEL
+-#define do_wfi() __asm__ __volatile__ ("wfi" : : : "memory")
+-#else
+-#define do_wfi()			\
+-		__asm__ __volatile__ (".word	0xe320f003" : : : "memory")
+-#endif
+-
+-#ifdef CONFIG_CACHE_L2X0
+-extern void __iomem *l2cache_base;
+-#endif
+-
+-extern void __iomem *gic_dist_base_addr;
+-
+-extern void __init gic_init_irq(void);
+-extern void omap_smc1(u32 fn, u32 arg);
+-
+-#ifdef CONFIG_SMP
+-/* Needed for secondary core boot */
+-extern void omap_secondary_startup(void);
+-extern u32 omap_modify_auxcoreboot0(u32 set_mask, u32 clear_mask);
+-extern void omap_auxcoreboot_addr(u32 cpu_addr);
+-extern u32 omap_read_auxcoreboot0(void);
+-#endif
+-#endif
+diff --git a/arch/arm/mach-omap2/io.c b/arch/arm/mach-omap2/io.c
+index 25d20ce..33f090c 100644
+--- a/arch/arm/mach-omap2/io.c
++++ b/arch/arm/mach-omap2/io.c
+@@ -35,7 +35,7 @@
+ #include "clock3xxx.h"
+ #include "clock44xx.h"
+ 
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/omap-pm.h>
+ #include "voltage.h"
+ #include "powerdomain.h"
+@@ -43,7 +43,7 @@
+ #include "clockdomain.h"
+ #include <plat/omap_hwmod.h>
+ #include <plat/multi.h>
+-#include <plat/common.h>
++#include "common.h"
+ 
+ /*
+  * The machine specific code may provide the extra mapping besides the
+diff --git a/arch/arm/mach-omap2/omap-hotplug.c b/arch/arm/mach-omap2/omap-hotplug.c
+index 4976b93..e5a1c3f 100644
+--- a/arch/arm/mach-omap2/omap-hotplug.c
++++ b/arch/arm/mach-omap2/omap-hotplug.c
+@@ -19,7 +19,8 @@
+ #include <linux/smp.h>
+ 
+ #include <asm/cacheflush.h>
+-#include <mach/omap4-common.h>
++
++#include "common.h"
+ 
+ int platform_cpu_kill(unsigned int cpu)
+ {
+diff --git a/arch/arm/mach-omap2/omap-smp.c b/arch/arm/mach-omap2/omap-smp.c
+index 4412ddb..e99bc6c 100644
+--- a/arch/arm/mach-omap2/omap-smp.c
++++ b/arch/arm/mach-omap2/omap-smp.c
+@@ -24,7 +24,8 @@
+ #include <asm/hardware/gic.h>
+ #include <asm/smp_scu.h>
+ #include <mach/hardware.h>
+-#include <mach/omap4-common.h>
++
++#include "common.h"
+ 
+ /* SCU base address */
+ static void __iomem *scu_base;
+diff --git a/arch/arm/mach-omap2/omap4-common.c b/arch/arm/mach-omap2/omap4-common.c
+index 35ac3e5..f327d74 100644
+--- a/arch/arm/mach-omap2/omap4-common.c
++++ b/arch/arm/mach-omap2/omap4-common.c
+@@ -22,7 +22,8 @@
+ #include <plat/irqs.h>
+ 
+ #include <mach/hardware.h>
+-#include <mach/omap4-common.h>
++
++#include "common.h"
+ 
+ #ifdef CONFIG_CACHE_L2X0
+ void __iomem *l2cache_base;
+diff --git a/arch/arm/mach-omap2/omap_hwmod.c b/arch/arm/mach-omap2/omap_hwmod.c
+index 207a2ff..529142a 100644
+--- a/arch/arm/mach-omap2/omap_hwmod.c
++++ b/arch/arm/mach-omap2/omap_hwmod.c
+@@ -137,7 +137,7 @@
+ #include <linux/mutex.h>
+ #include <linux/spinlock.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/cpu.h>
+ #include "clockdomain.h"
+ #include "powerdomain.h"
+diff --git a/arch/arm/mach-omap2/pm.c b/arch/arm/mach-omap2/pm.c
+index 00bff46..1881fe9 100644
+--- a/arch/arm/mach-omap2/pm.c
++++ b/arch/arm/mach-omap2/pm.c
+@@ -18,7 +18,7 @@
+ 
+ #include <plat/omap-pm.h>
+ #include <plat/omap_device.h>
+-#include <plat/common.h>
++#include "common.h"
+ 
+ #include "voltage.h"
+ #include "powerdomain.h"
+diff --git a/arch/arm/mach-omap2/pm24xx.c b/arch/arm/mach-omap2/pm24xx.c
+index cf0c216..ef8595c 100644
+--- a/arch/arm/mach-omap2/pm24xx.c
++++ b/arch/arm/mach-omap2/pm24xx.c
+@@ -42,6 +42,7 @@
+ #include <plat/dma.h>
+ #include <plat/board.h>
+ 
++#include "common.h"
+ #include "prm2xxx_3xxx.h"
+ #include "prm-regbits-24xx.h"
+ #include "cm2xxx_3xxx.h"
+diff --git a/arch/arm/mach-omap2/pm34xx.c b/arch/arm/mach-omap2/pm34xx.c
+index efa6649..fa637df 100644
+--- a/arch/arm/mach-omap2/pm34xx.c
++++ b/arch/arm/mach-omap2/pm34xx.c
+@@ -42,6 +42,7 @@
+ #include <plat/gpmc.h>
+ #include <plat/dma.h>
+ 
++#include "common.h"
+ #include "cm2xxx_3xxx.h"
+ #include "cm-regbits-34xx.h"
+ #include "prm-regbits-34xx.h"
+diff --git a/arch/arm/mach-omap2/pm44xx.c b/arch/arm/mach-omap2/pm44xx.c
+index 59a870b..8edb015 100644
+--- a/arch/arm/mach-omap2/pm44xx.c
++++ b/arch/arm/mach-omap2/pm44xx.c
+@@ -16,8 +16,8 @@
+ #include <linux/err.h>
+ #include <linux/slab.h>
+ 
++#include "common.h"
+ #include "powerdomain.h"
+-#include <mach/omap4-common.h>
+ 
+ struct power_state {
+ 	struct powerdomain *pwrdm;
+diff --git a/arch/arm/mach-omap2/prcm.c b/arch/arm/mach-omap2/prcm.c
+index 597e2da..c35e5ce 100644
+--- a/arch/arm/mach-omap2/prcm.c
++++ b/arch/arm/mach-omap2/prcm.c
+@@ -26,7 +26,7 @@
+ #include <linux/export.h>
+ 
+ #include <mach/system.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/prcm.h>
+ #include <plat/irqs.h>
+ 
+diff --git a/arch/arm/mach-omap2/prcm_mpu44xx.c b/arch/arm/mach-omap2/prcm_mpu44xx.c
+index 171fe17..ca669b5 100644
+--- a/arch/arm/mach-omap2/prcm_mpu44xx.c
++++ b/arch/arm/mach-omap2/prcm_mpu44xx.c
+@@ -15,7 +15,7 @@
+ #include <linux/err.h>
+ #include <linux/io.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ 
+ #include "prcm_mpu44xx.h"
+ #include "cm-regbits-44xx.h"
+diff --git a/arch/arm/mach-omap2/prm2xxx_3xxx.c b/arch/arm/mach-omap2/prm2xxx_3xxx.c
+index f02d87f..9a08ba3 100644
+--- a/arch/arm/mach-omap2/prm2xxx_3xxx.c
++++ b/arch/arm/mach-omap2/prm2xxx_3xxx.c
+@@ -16,7 +16,7 @@
+ #include <linux/err.h>
+ #include <linux/io.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/cpu.h>
+ #include <plat/prcm.h>
+ 
+diff --git a/arch/arm/mach-omap2/prm44xx.c b/arch/arm/mach-omap2/prm44xx.c
+index 495a31a..dd885ee 100644
+--- a/arch/arm/mach-omap2/prm44xx.c
++++ b/arch/arm/mach-omap2/prm44xx.c
+@@ -17,7 +17,7 @@
+ #include <linux/err.h>
+ #include <linux/io.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/cpu.h>
+ #include <plat/prcm.h>
+ 
+diff --git a/arch/arm/mach-omap2/prminst44xx.c b/arch/arm/mach-omap2/prminst44xx.c
+index 3a7bab1..f6de5bc 100644
+--- a/arch/arm/mach-omap2/prminst44xx.c
++++ b/arch/arm/mach-omap2/prminst44xx.c
+@@ -16,7 +16,7 @@
+ #include <linux/err.h>
+ #include <linux/io.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ 
+ #include "prm44xx.h"
+ #include "prminst44xx.h"
+diff --git a/arch/arm/mach-omap2/sdram-nokia.c b/arch/arm/mach-omap2/sdram-nokia.c
+index 14caa22..ee3a8ad 100644
+--- a/arch/arm/mach-omap2/sdram-nokia.c
++++ b/arch/arm/mach-omap2/sdram-nokia.c
+@@ -18,7 +18,7 @@
+ #include <linux/io.h>
+ 
+ #include <plat/io.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/clock.h>
+ #include <plat/sdrc.h>
+ 
+diff --git a/arch/arm/mach-omap2/sdrc.c b/arch/arm/mach-omap2/sdrc.c
+index 8f27828..e3d345f 100644
+--- a/arch/arm/mach-omap2/sdrc.c
++++ b/arch/arm/mach-omap2/sdrc.c
+@@ -23,7 +23,7 @@
+ #include <linux/clk.h>
+ #include <linux/io.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/clock.h>
+ #include <plat/sram.h>
+ 
+diff --git a/arch/arm/mach-omap2/sdrc2xxx.c b/arch/arm/mach-omap2/sdrc2xxx.c
+index ccdb010..791a63c 100644
+--- a/arch/arm/mach-omap2/sdrc2xxx.c
++++ b/arch/arm/mach-omap2/sdrc2xxx.c
+@@ -24,7 +24,7 @@
+ #include <linux/clk.h>
+ #include <linux/io.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/clock.h>
+ #include <plat/sram.h>
+ 
+diff --git a/arch/arm/mach-omap2/serial.c b/arch/arm/mach-omap2/serial.c
+index 9992dbf..42c3267 100644
+--- a/arch/arm/mach-omap2/serial.c
++++ b/arch/arm/mach-omap2/serial.c
+@@ -33,7 +33,7 @@
+ #include <plat/omap-serial.h>
+ #endif
+ 
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/board.h>
+ #include <plat/clock.h>
+ #include <plat/dma.h>
+diff --git a/arch/arm/mach-omap2/smartreflex.c b/arch/arm/mach-omap2/smartreflex.c
+index cf246b3..9dd9345 100644
+--- a/arch/arm/mach-omap2/smartreflex.c
++++ b/arch/arm/mach-omap2/smartreflex.c
+@@ -26,7 +26,7 @@
+ #include <linux/slab.h>
+ #include <linux/pm_runtime.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ 
+ #include "pm.h"
+ #include "smartreflex.h"
+diff --git a/arch/arm/mach-omap2/timer.c b/arch/arm/mach-omap2/timer.c
+index 037b0d7..9edcd52 100644
+--- a/arch/arm/mach-omap2/timer.c
++++ b/arch/arm/mach-omap2/timer.c
+@@ -41,7 +41,7 @@
+ #include <plat/dmtimer.h>
+ #include <asm/localtimer.h>
+ #include <asm/sched_clock.h>
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/omap_hwmod.h>
+ #include <plat/omap_device.h>
+ #include <plat/omap-pm.h>
+diff --git a/arch/arm/mach-omap2/vc3xxx_data.c b/arch/arm/mach-omap2/vc3xxx_data.c
+index cfe348e..a5ec7f8f 100644
+--- a/arch/arm/mach-omap2/vc3xxx_data.c
++++ b/arch/arm/mach-omap2/vc3xxx_data.c
+@@ -18,7 +18,7 @@
+ #include <linux/err.h>
+ #include <linux/init.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ 
+ #include "prm-regbits-34xx.h"
+ #include "voltage.h"
+diff --git a/arch/arm/mach-omap2/vc44xx_data.c b/arch/arm/mach-omap2/vc44xx_data.c
+index 2740a96..d70b930 100644
+--- a/arch/arm/mach-omap2/vc44xx_data.c
++++ b/arch/arm/mach-omap2/vc44xx_data.c
+@@ -18,7 +18,7 @@
+ #include <linux/err.h>
+ #include <linux/init.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ 
+ #include "prm44xx.h"
+ #include "prm-regbits-44xx.h"
+diff --git a/arch/arm/mach-omap2/voltage.c b/arch/arm/mach-omap2/voltage.c
+index 1f8fdf7..8a36342 100644
+--- a/arch/arm/mach-omap2/voltage.c
++++ b/arch/arm/mach-omap2/voltage.c
+@@ -27,7 +27,7 @@
+ #include <linux/slab.h>
+ #include <linux/clk.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ 
+ #include "prm-regbits-34xx.h"
+ #include "prm-regbits-44xx.h"
+diff --git a/arch/arm/mach-omap2/voltagedomains3xxx_data.c b/arch/arm/mach-omap2/voltagedomains3xxx_data.c
+index 071101d..474559d 100644
+--- a/arch/arm/mach-omap2/voltagedomains3xxx_data.c
++++ b/arch/arm/mach-omap2/voltagedomains3xxx_data.c
+@@ -18,7 +18,7 @@
+ #include <linux/err.h>
+ #include <linux/init.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ #include <plat/cpu.h>
+ 
+ #include "prm-regbits-34xx.h"
+diff --git a/arch/arm/mach-omap2/voltagedomains44xx_data.c b/arch/arm/mach-omap2/voltagedomains44xx_data.c
+index c4584e9..4e11d02 100644
+--- a/arch/arm/mach-omap2/voltagedomains44xx_data.c
++++ b/arch/arm/mach-omap2/voltagedomains44xx_data.c
+@@ -21,7 +21,7 @@
+ #include <linux/err.h>
+ #include <linux/init.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ 
+ #include "prm-regbits-44xx.h"
+ #include "prm44xx.h"
+diff --git a/arch/arm/mach-omap2/vp.c b/arch/arm/mach-omap2/vp.c
+index 66bd700..807391d 100644
+--- a/arch/arm/mach-omap2/vp.c
++++ b/arch/arm/mach-omap2/vp.c
+@@ -1,7 +1,7 @@
+ #include <linux/kernel.h>
+ #include <linux/init.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ 
+ #include "voltage.h"
+ #include "vp.h"
+diff --git a/arch/arm/mach-omap2/vp3xxx_data.c b/arch/arm/mach-omap2/vp3xxx_data.c
+index 260c554..bd89f80 100644
+--- a/arch/arm/mach-omap2/vp3xxx_data.c
++++ b/arch/arm/mach-omap2/vp3xxx_data.c
+@@ -19,7 +19,7 @@
+ #include <linux/err.h>
+ #include <linux/init.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ 
+ #include "prm-regbits-34xx.h"
+ #include "voltage.h"
+diff --git a/arch/arm/mach-omap2/vp44xx_data.c b/arch/arm/mach-omap2/vp44xx_data.c
+index b4e7704..8c031d1 100644
+--- a/arch/arm/mach-omap2/vp44xx_data.c
++++ b/arch/arm/mach-omap2/vp44xx_data.c
+@@ -19,7 +19,7 @@
+ #include <linux/err.h>
+ #include <linux/init.h>
+ 
+-#include <plat/common.h>
++#include "common.h"
+ 
+ #include "prm44xx.h"
+ #include "prm-regbits-44xx.h"
+diff --git a/arch/arm/plat-omap/include/plat/common.h b/arch/arm/plat-omap/include/plat/common.h
+index 3ff3e36..20674bf 100644
+--- a/arch/arm/plat-omap/include/plat/common.h
++++ b/arch/arm/plat-omap/include/plat/common.h
+@@ -27,97 +27,16 @@
+ #ifndef __ARCH_ARM_MACH_OMAP_COMMON_H
+ #define __ARCH_ARM_MACH_OMAP_COMMON_H
+ 
+-#include <linux/delay.h>
+-
+ #include <plat/i2c.h>
+ #include <plat/omap_hwmod.h>
+ 
+-struct sys_timer;
+-
+-extern void omap_map_common_io(void);
+-extern struct sys_timer omap1_timer;
+-extern struct sys_timer omap2_timer;
+-extern struct sys_timer omap3_timer;
+-extern struct sys_timer omap3_secure_timer;
+-extern struct sys_timer omap4_timer;
+-extern bool omap_32k_timer_init(void);
+ extern int __init omap_init_clocksource_32k(void);
+ extern unsigned long long notrace omap_32k_sched_clock(void);
+ 
+ extern void omap_reserve(void);
+ 
+-void omap2420_init_early(void);
+-void omap2430_init_early(void);
+-void omap3430_init_early(void);
+-void omap35xx_init_early(void);
+-void omap3630_init_early(void);
+-void omap3_init_early(void);	/* Do not use this one */
+-void am35xx_init_early(void);
+-void ti816x_init_early(void);
+-void omap4430_init_early(void);
+-
+ extern int omap_dss_reset(struct omap_hwmod *);
+ 
+ void omap_sram_init(void);
+ 
+-/*
+- * IO bases for various OMAP processors
+- * Except the tap base, rest all the io bases
+- * listed are physical addresses.
+- */
+-struct omap_globals {
+-	u32		class;		/* OMAP class to detect */
+-	void __iomem	*tap;		/* Control module ID code */
+-	void __iomem	*sdrc;           /* SDRAM Controller */
+-	void __iomem	*sms;            /* SDRAM Memory Scheduler */
+-	void __iomem	*ctrl;           /* System Control Module */
+-	void __iomem	*ctrl_pad;	/* PAD Control Module */
+-	void __iomem	*prm;            /* Power and Reset Management */
+-	void __iomem	*cm;             /* Clock Management */
+-	void __iomem	*cm2;
+-};
+-
+-void omap2_set_globals_242x(void);
+-void omap2_set_globals_243x(void);
+-void omap2_set_globals_3xxx(void);
+-void omap2_set_globals_443x(void);
+-void omap2_set_globals_ti816x(void);
+-
+-/* These get called from omap2_set_globals_xxxx(), do not call these */
+-void omap2_set_globals_tap(struct omap_globals *);
+-void omap2_set_globals_sdrc(struct omap_globals *);
+-void omap2_set_globals_control(struct omap_globals *);
+-void omap2_set_globals_prcm(struct omap_globals *);
+-
+-void omap242x_map_io(void);
+-void omap243x_map_io(void);
+-void omap3_map_io(void);
+-void omap4_map_io(void);
+-
+-
+-/**
+- * omap_test_timeout - busy-loop, testing a condition
+- * @cond: condition to test until it evaluates to true
+- * @timeout: maximum number of microseconds in the timeout
+- * @index: loop index (integer)
+- *
+- * Loop waiting for @cond to become true or until at least @timeout
+- * microseconds have passed.  To use, define some integer @index in the
+- * calling code.  After running, if @index == @timeout, then the loop has
+- * timed out.
+- */
+-#define omap_test_timeout(cond, timeout, index)			\
+-({								\
+-	for (index = 0; index < timeout; index++) {		\
+-		if (cond)					\
+-			break;					\
+-		udelay(1);					\
+-	}							\
+-})
+-
+-extern struct device *omap2_get_mpuss_device(void);
+-extern struct device *omap2_get_iva_device(void);
+-extern struct device *omap2_get_l3_device(void);
+-extern struct device *omap4_get_dsp_device(void);
+-
+ #endif /* __ARCH_ARM_MACH_OMAP_COMMON_H */
+diff --git a/arch/arm/plat-omap/include/plat/io.h b/arch/arm/plat-omap/include/plat/io.h
+index 7f2969e..62f4477 100644
+--- a/arch/arm/plat-omap/include/plat/io.h
++++ b/arch/arm/plat-omap/include/plat/io.h
+@@ -257,74 +257,6 @@ extern void omap_writew(u16 v, u32 pa);
+ extern void omap_writel(u32 v, u32 pa);
+ 
+ struct omap_sdrc_params;
+-
+-#if defined(CONFIG_ARCH_OMAP730) || defined(CONFIG_ARCH_OMAP850)
+-void omap7xx_map_io(void);
+-#else
+-static inline void omap_map_io(void)
+-{
+-}
+-#endif
+-
+-#ifdef CONFIG_ARCH_OMAP15XX
+-void omap15xx_map_io(void);
+-#else
+-static inline void omap15xx_map_io(void)
+-{
+-}
+-#endif
+-
+-#ifdef CONFIG_ARCH_OMAP16XX
+-void omap16xx_map_io(void);
+-#else
+-static inline void omap16xx_map_io(void)
+-{
+-}
+-#endif
+-
+-void omap1_init_early(void);
+-
+-#ifdef CONFIG_SOC_OMAP2420
+-extern void omap242x_map_common_io(void);
+-#else
+-static inline void omap242x_map_common_io(void)
+-{
+-}
+-#endif
+-
+-#ifdef CONFIG_SOC_OMAP2430
+-extern void omap243x_map_common_io(void);
+-#else
+-static inline void omap243x_map_common_io(void)
+-{
+-}
+-#endif
+-
+-#ifdef CONFIG_ARCH_OMAP3
+-extern void omap34xx_map_common_io(void);
+-#else
+-static inline void omap34xx_map_common_io(void)
+-{
+-}
+-#endif
+-
+-#ifdef CONFIG_SOC_OMAPTI816X
+-extern void omapti816x_map_common_io(void);
+-#else
+-static inline void omapti816x_map_common_io(void)
+-{
+-}
+-#endif
+-
+-#ifdef CONFIG_ARCH_OMAP4
+-extern void omap44xx_map_common_io(void);
+-#else
+-static inline void omap44xx_map_common_io(void)
+-{
+-}
+-#endif
+-
+-extern void omap2_init_common_infrastructure(void);
+ extern void omap_sdrc_init(struct omap_sdrc_params *sdrc_cs0,
+ 				      struct omap_sdrc_params *sdrc_cs1);
+ 
+diff --git a/arch/arm/plat-omap/include/plat/irqs.h b/arch/arm/plat-omap/include/plat/irqs.h
+index 30e1071..d3a9fcd 100644
+--- a/arch/arm/plat-omap/include/plat/irqs.h
++++ b/arch/arm/plat-omap/include/plat/irqs.h
+@@ -438,16 +438,6 @@
+ 
+ #ifndef __ASSEMBLY__
+ extern void __iomem *omap_irq_base;
+-void omap1_init_irq(void);
+-void omap2_init_irq(void);
+-void omap3_init_irq(void);
+-void ti816x_init_irq(void);
+-extern int omap_irq_pending(void);
+-void omap_intc_save_context(void);
+-void omap_intc_restore_context(void);
+-void omap3_intc_suspend(void);
+-void omap3_intc_prepare_idle(void);
+-void omap3_intc_resume_idle(void);
+ #endif
+ 
+ #include <mach/hardware.h>
+commit 6d8c96d4be820a14bd5ca173a77805a3d409b8ca
+Author: Russell King <rmk+kernel@arm.linux.org.uk>
+
+    ARM: restart: omap: use new restart hook
+
+diff --git a/arch/arm/mach-omap1/board-ams-delta.c b/arch/arm/mach-omap1/board-ams-delta.c
+index af791196..88909cc 100644
+--- a/arch/arm/mach-omap1/board-ams-delta.c
++++ b/arch/arm/mach-omap1/board-ams-delta.c
+@@ -386,6 +386,7 @@ MACHINE_START(AMS_DELTA, "Amstrad E3 (Delta)")
+ 	.init_irq	= omap1_init_irq,
+ 	.init_machine	= ams_delta_init,
+ 	.timer		= &omap1_timer,
++	.restart	= omap1_restart,
+ MACHINE_END
+ 
+ EXPORT_SYMBOL(ams_delta_latch1_write);
+diff --git a/arch/arm/mach-omap1/board-fsample.c b/arch/arm/mach-omap1/board-fsample.c
+index b9c4c0f..0b9464b 100644
+--- a/arch/arm/mach-omap1/board-fsample.c
++++ b/arch/arm/mach-omap1/board-fsample.c
+@@ -390,4 +390,5 @@ MACHINE_START(OMAP_FSAMPLE, "OMAP730 F-Sample")
+ 	.init_irq	= omap1_init_irq,
+ 	.init_machine	= omap_fsample_init,
+ 	.timer		= &omap1_timer,
++	.restart	= omap1_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap1/board-generic.c b/arch/arm/mach-omap1/board-generic.c
+index 7f41d7a..9a5fe58 100644
+--- a/arch/arm/mach-omap1/board-generic.c
++++ b/arch/arm/mach-omap1/board-generic.c
+@@ -89,4 +89,5 @@ MACHINE_START(OMAP_GENERIC, "Generic OMAP1510/1610/1710")
+ 	.init_irq	= omap1_init_irq,
+ 	.init_machine	= omap_generic_init,
+ 	.timer		= &omap1_timer,
++	.restart	= omap1_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap1/board-h2.c b/arch/arm/mach-omap1/board-h2.c
+index 7933b97..00ad6b2 100644
+--- a/arch/arm/mach-omap1/board-h2.c
++++ b/arch/arm/mach-omap1/board-h2.c
+@@ -456,4 +456,5 @@ MACHINE_START(OMAP_H2, "TI-H2")
+ 	.init_irq	= omap1_init_irq,
+ 	.init_machine	= h2_init,
+ 	.timer		= &omap1_timer,
++	.restart	= omap1_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap1/board-h3.c b/arch/arm/mach-omap1/board-h3.c
+index 04be2f8..4a7f251 100644
+--- a/arch/arm/mach-omap1/board-h3.c
++++ b/arch/arm/mach-omap1/board-h3.c
+@@ -444,4 +444,5 @@ MACHINE_START(OMAP_H3, "TI OMAP1710 H3 board")
+ 	.init_irq	= omap1_init_irq,
+ 	.init_machine	= h3_init,
+ 	.timer		= &omap1_timer,
++	.restart	= omap1_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap1/board-htcherald.c b/arch/arm/mach-omap1/board-htcherald.c
+index 46fcfeb..731cc3d 100644
+--- a/arch/arm/mach-omap1/board-htcherald.c
++++ b/arch/arm/mach-omap1/board-htcherald.c
+@@ -610,4 +610,5 @@ MACHINE_START(HERALD, "HTC Herald")
+ 	.init_irq       = omap1_init_irq,
+ 	.init_machine   = htcherald_init,
+ 	.timer          = &omap1_timer,
++	.restart	= omap1_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap1/board-innovator.c b/arch/arm/mach-omap1/board-innovator.c
+index f99d11d..309369e 100644
+--- a/arch/arm/mach-omap1/board-innovator.c
++++ b/arch/arm/mach-omap1/board-innovator.c
+@@ -460,4 +460,5 @@ MACHINE_START(OMAP_INNOVATOR, "TI-Innovator")
+ 	.init_irq	= omap1_init_irq,
+ 	.init_machine	= innovator_init,
+ 	.timer		= &omap1_timer,
++	.restart	= omap1_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap1/board-nokia770.c b/arch/arm/mach-omap1/board-nokia770.c
+index c643423..f9efc03 100644
+--- a/arch/arm/mach-omap1/board-nokia770.c
++++ b/arch/arm/mach-omap1/board-nokia770.c
+@@ -259,4 +259,5 @@ MACHINE_START(NOKIA770, "Nokia 770")
+ 	.init_irq	= omap1_init_irq,
+ 	.init_machine	= omap_nokia770_init,
+ 	.timer		= &omap1_timer,
++	.restart	= omap1_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap1/board-osk.c b/arch/arm/mach-omap1/board-osk.c
+index a409dfc..675de06 100644
+--- a/arch/arm/mach-omap1/board-osk.c
++++ b/arch/arm/mach-omap1/board-osk.c
+@@ -578,4 +578,5 @@ MACHINE_START(OMAP_OSK, "TI-OSK")
+ 	.init_irq	= omap1_init_irq,
+ 	.init_machine	= osk_init,
+ 	.timer		= &omap1_timer,
++	.restart	= omap1_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap1/board-palmte.c b/arch/arm/mach-omap1/board-palmte.c
+index 105292d..81fa27f 100644
+--- a/arch/arm/mach-omap1/board-palmte.c
++++ b/arch/arm/mach-omap1/board-palmte.c
+@@ -270,4 +270,5 @@ MACHINE_START(OMAP_PALMTE, "OMAP310 based Palm Tungsten E")
+ 	.init_irq	= omap1_init_irq,
+ 	.init_machine	= omap_palmte_init,
+ 	.timer		= &omap1_timer,
++	.restart	= omap1_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap1/board-palmtt.c b/arch/arm/mach-omap1/board-palmtt.c
+index 387a900..81cb821 100644
+--- a/arch/arm/mach-omap1/board-palmtt.c
++++ b/arch/arm/mach-omap1/board-palmtt.c
+@@ -317,4 +317,5 @@ MACHINE_START(OMAP_PALMTT, "OMAP1510 based Palm Tungsten|T")
+ 	.init_irq	= omap1_init_irq,
+ 	.init_machine	= omap_palmtt_init,
+ 	.timer		= &omap1_timer,
++	.restart	= omap1_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap1/board-palmz71.c b/arch/arm/mach-omap1/board-palmz71.c
+index df6d15e..e881945 100644
+--- a/arch/arm/mach-omap1/board-palmz71.c
++++ b/arch/arm/mach-omap1/board-palmz71.c
+@@ -334,4 +334,5 @@ MACHINE_START(OMAP_PALMZ71, "OMAP310 based Palm Zire71")
+ 	.init_irq	= omap1_init_irq,
+ 	.init_machine	= omap_palmz71_init,
+ 	.timer		= &omap1_timer,
++	.restart	= omap1_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap1/board-perseus2.c b/arch/arm/mach-omap1/board-perseus2.c
+index 57ecd7e..c000bed 100644
+--- a/arch/arm/mach-omap1/board-perseus2.c
++++ b/arch/arm/mach-omap1/board-perseus2.c
+@@ -352,4 +352,5 @@ MACHINE_START(OMAP_PERSEUS2, "OMAP730 Perseus2")
+ 	.init_irq	= omap1_init_irq,
+ 	.init_machine	= omap_perseus2_init,
+ 	.timer		= &omap1_timer,
++	.restart	= omap1_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap1/board-sx1.c b/arch/arm/mach-omap1/board-sx1.c
+index 774ae39..7bcd82a 100644
+--- a/arch/arm/mach-omap1/board-sx1.c
++++ b/arch/arm/mach-omap1/board-sx1.c
+@@ -416,4 +416,5 @@ MACHINE_START(SX1, "OMAP310 based Siemens SX1")
+ 	.init_irq	= omap1_init_irq,
+ 	.init_machine	= omap_sx1_init,
+ 	.timer		= &omap1_timer,
++	.restart	= omap1_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap1/board-voiceblue.c b/arch/arm/mach-omap1/board-voiceblue.c
+index 7721c14..f83a502d 100644
+--- a/arch/arm/mach-omap1/board-voiceblue.c
++++ b/arch/arm/mach-omap1/board-voiceblue.c
+@@ -28,7 +28,6 @@
+ #include <linux/export.h>
+ 
+ #include <mach/hardware.h>
+-#include <mach/system.h>
+ #include <asm/mach-types.h>
+ #include <asm/mach/arch.h>
+ #include <asm/mach/map.h>
+@@ -221,7 +220,7 @@ void voiceblue_wdt_ping(void)
+ 	gpio_set_value(0, wdt_gpio_state);
+ }
+ 
+-static void voiceblue_reset(char mode, const char *cmd)
++static void voiceblue_restart(char mode, const char *cmd)
+ {
+ 	/*
+ 	 * Workaround for 5912/1611b bug mentioned in sprz209d.pdf p. 28
+@@ -285,8 +284,6 @@ static void __init voiceblue_init(void)
+ 	 * (it is connected through invertor) */
+ 	omap_writeb(0x00, OMAP_LPG1_LCR);
+ 	omap_writeb(0x00, OMAP_LPG1_PMR);	/* Disable clock */
+-
+-	arch_reset = voiceblue_reset;
+ }
+ 
+ MACHINE_START(VOICEBLUE, "VoiceBlue OMAP5910")
+@@ -298,4 +295,5 @@ MACHINE_START(VOICEBLUE, "VoiceBlue OMAP5910")
+ 	.init_irq	= omap1_init_irq,
+ 	.init_machine	= voiceblue_init,
+ 	.timer		= &omap1_timer,
++	.restart	= voiceblue_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap1/common.h b/arch/arm/mach-omap1/common.h
+index 52c4eda..a9a5146 100644
+--- a/arch/arm/mach-omap1/common.h
++++ b/arch/arm/mach-omap1/common.h
+@@ -54,6 +54,7 @@ static inline void omap16xx_map_io(void)
+ 
+ void omap1_init_early(void);
+ void omap1_init_irq(void);
++void omap1_restart(char, const char *);
+ 
+ extern struct sys_timer omap1_timer;
+ extern bool omap_32k_timer_init(void);
+diff --git a/arch/arm/mach-omap1/reset.c b/arch/arm/mach-omap1/reset.c
+index ad951ee..91d199b 100644
+--- a/arch/arm/mach-omap1/reset.c
++++ b/arch/arm/mach-omap1/reset.c
+@@ -5,10 +5,9 @@
+ #include <linux/io.h>
+ 
+ #include <mach/hardware.h>
+-#include <mach/system.h>
+ #include <plat/prcm.h>
+ 
+-void omap1_arch_reset(char mode, const char *cmd)
++void omap1_restart(char mode, const char *cmd)
+ {
+ 	/*
+ 	 * Workaround for 5912/1611b bug mentioned in sprz209d.pdf p. 28
+@@ -21,5 +20,3 @@ void omap1_arch_reset(char mode, const char *cmd)
+ 
+ 	omap_writew(1, ARM_RSTCT1);
+ }
+-
+-void (*arch_reset)(char, const char *) = omap1_arch_reset;
+diff --git a/arch/arm/mach-omap2/board-2430sdp.c b/arch/arm/mach-omap2/board-2430sdp.c
+index a17a6c4..2e73024 100644
+--- a/arch/arm/mach-omap2/board-2430sdp.c
++++ b/arch/arm/mach-omap2/board-2430sdp.c
+@@ -303,4 +303,5 @@ MACHINE_START(OMAP_2430SDP, "OMAP2430 sdp2430 board")
+ 	.init_irq	= omap2_init_irq,
+ 	.init_machine	= omap_2430sdp_init,
+ 	.timer		= &omap2_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-3430sdp.c b/arch/arm/mach-omap2/board-3430sdp.c
+index 670919c..7111677 100644
+--- a/arch/arm/mach-omap2/board-3430sdp.c
++++ b/arch/arm/mach-omap2/board-3430sdp.c
+@@ -730,4 +730,5 @@ MACHINE_START(OMAP_3430SDP, "OMAP3430 3430SDP board")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= omap_3430sdp_init,
+ 	.timer		= &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-3630sdp.c b/arch/arm/mach-omap2/board-3630sdp.c
+index 63f4b4f..a01d081 100644
+--- a/arch/arm/mach-omap2/board-3630sdp.c
++++ b/arch/arm/mach-omap2/board-3630sdp.c
+@@ -217,4 +217,5 @@ MACHINE_START(OMAP_3630SDP, "OMAP 3630SDP board")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= omap_sdp_init,
+ 	.timer		= &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-4430sdp.c b/arch/arm/mach-omap2/board-4430sdp.c
+index cff2e32..8a46ad8 100644
+--- a/arch/arm/mach-omap2/board-4430sdp.c
++++ b/arch/arm/mach-omap2/board-4430sdp.c
+@@ -985,4 +985,5 @@ MACHINE_START(OMAP_4430SDP, "OMAP4430 4430SDP board")
+ 	.init_irq	= gic_init_irq,
+ 	.init_machine	= omap_4430sdp_init,
+ 	.timer		= &omap4_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-am3517crane.c b/arch/arm/mach-omap2/board-am3517crane.c
+index 2570475..c1d6b63 100644
+--- a/arch/arm/mach-omap2/board-am3517crane.c
++++ b/arch/arm/mach-omap2/board-am3517crane.c
+@@ -100,4 +100,5 @@ MACHINE_START(CRANEBOARD, "AM3517/05 CRANEBOARD")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= am3517_crane_init,
+ 	.timer		= &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-am3517evm.c b/arch/arm/mach-omap2/board-am3517evm.c
+index 56ea011..18c0790 100644
+--- a/arch/arm/mach-omap2/board-am3517evm.c
++++ b/arch/arm/mach-omap2/board-am3517evm.c
+@@ -493,4 +493,5 @@ MACHINE_START(OMAP3517EVM, "OMAP3517/AM3517 EVM")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= am3517_evm_init,
+ 	.timer		= &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-apollon.c b/arch/arm/mach-omap2/board-apollon.c
+index 9aea158..75c731c 100644
+--- a/arch/arm/mach-omap2/board-apollon.c
++++ b/arch/arm/mach-omap2/board-apollon.c
+@@ -356,4 +356,5 @@ MACHINE_START(OMAP_APOLLON, "OMAP24xx Apollon")
+ 	.init_irq	= omap2_init_irq,
+ 	.init_machine	= omap_apollon_init,
+ 	.timer		= &omap2_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-cm-t35.c b/arch/arm/mach-omap2/board-cm-t35.c
+index e1de33e..c3402cd 100644
+--- a/arch/arm/mach-omap2/board-cm-t35.c
++++ b/arch/arm/mach-omap2/board-cm-t35.c
+@@ -636,6 +636,7 @@ MACHINE_START(CM_T35, "Compulab CM-T35")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= cm_t35_init,
+ 	.timer		= &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+ 
+ MACHINE_START(CM_T3730, "Compulab CM-T3730")
+@@ -646,4 +647,5 @@ MACHINE_START(CM_T3730, "Compulab CM-T3730")
+ 	.init_irq       = omap3_init_irq,
+ 	.init_machine   = cm_t3730_init,
+ 	.timer          = &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-cm-t3517.c b/arch/arm/mach-omap2/board-cm-t3517.c
+index 952df9b..0b06ac3 100644
+--- a/arch/arm/mach-omap2/board-cm-t3517.c
++++ b/arch/arm/mach-omap2/board-cm-t3517.c
+@@ -301,4 +301,5 @@ MACHINE_START(CM_T3517, "Compulab CM-T3517")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= cm_t3517_init,
+ 	.timer		= &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-devkit8000.c b/arch/arm/mach-omap2/board-devkit8000.c
+index 99e6e7a..519e5f9 100644
+--- a/arch/arm/mach-omap2/board-devkit8000.c
++++ b/arch/arm/mach-omap2/board-devkit8000.c
+@@ -662,4 +662,5 @@ MACHINE_START(DEVKIT8000, "OMAP3 Devkit8000")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= devkit8000_init,
+ 	.timer		= &omap3_secure_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-generic.c b/arch/arm/mach-omap2/board-generic.c
+index a89d723..f462d8c 100644
+--- a/arch/arm/mach-omap2/board-generic.c
++++ b/arch/arm/mach-omap2/board-generic.c
+@@ -106,6 +106,7 @@ DT_MACHINE_START(OMAP242X_DT, "Generic OMAP2420 (Flattened Device Tree)")
+ 	.init_machine	= omap_generic_init,
+ 	.timer		= &omap2_timer,
+ 	.dt_compat	= omap242x_boards_compat,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+ #endif
+ 
+@@ -124,6 +125,7 @@ DT_MACHINE_START(OMAP243X_DT, "Generic OMAP2430 (Flattened Device Tree)")
+ 	.init_machine	= omap_generic_init,
+ 	.timer		= &omap2_timer,
+ 	.dt_compat	= omap243x_boards_compat,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+ #endif
+ 
+@@ -142,6 +144,7 @@ DT_MACHINE_START(OMAP3_DT, "Generic OMAP3 (Flattened Device Tree)")
+ 	.init_machine	= omap3_init,
+ 	.timer		= &omap3_timer,
+ 	.dt_compat	= omap3_boards_compat,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+ #endif
+ 
+@@ -160,5 +163,6 @@ DT_MACHINE_START(OMAP4_DT, "Generic OMAP4 (Flattened Device Tree)")
+ 	.init_machine	= omap4_init,
+ 	.timer		= &omap4_timer,
+ 	.dt_compat	= omap4_boards_compat,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+ #endif
+diff --git a/arch/arm/mach-omap2/board-h4.c b/arch/arm/mach-omap2/board-h4.c
+index 199a174..34ccde4 100644
+--- a/arch/arm/mach-omap2/board-h4.c
++++ b/arch/arm/mach-omap2/board-h4.c
+@@ -398,4 +398,5 @@ MACHINE_START(OMAP_H4, "OMAP2420 H4 board")
+ 	.init_irq	= omap2_init_irq,
+ 	.init_machine	= omap_h4_init,
+ 	.timer		= &omap2_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-igep0020.c b/arch/arm/mach-omap2/board-igep0020.c
+index 6434bdc..e1850d5 100644
+--- a/arch/arm/mach-omap2/board-igep0020.c
++++ b/arch/arm/mach-omap2/board-igep0020.c
+@@ -674,6 +674,7 @@ MACHINE_START(IGEP0020, "IGEP v2 board")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= igep_init,
+ 	.timer		= &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+ 
+ MACHINE_START(IGEP0030, "IGEP OMAP3 module")
+@@ -684,4 +685,5 @@ MACHINE_START(IGEP0030, "IGEP OMAP3 module")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= igep_init,
+ 	.timer		= &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-ldp.c b/arch/arm/mach-omap2/board-ldp.c
+index e75102a..84bbdd6 100644
+--- a/arch/arm/mach-omap2/board-ldp.c
++++ b/arch/arm/mach-omap2/board-ldp.c
+@@ -436,4 +436,5 @@ MACHINE_START(OMAP_LDP, "OMAP LDP board")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= omap_ldp_init,
+ 	.timer		= &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-n8x0.c b/arch/arm/mach-omap2/board-n8x0.c
+index 7368614..cc1dd54 100644
+--- a/arch/arm/mach-omap2/board-n8x0.c
++++ b/arch/arm/mach-omap2/board-n8x0.c
+@@ -691,6 +691,7 @@ MACHINE_START(NOKIA_N800, "Nokia N800")
+ 	.init_irq	= omap2_init_irq,
+ 	.init_machine	= n8x0_init_machine,
+ 	.timer		= &omap2_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+ 
+ MACHINE_START(NOKIA_N810, "Nokia N810")
+@@ -701,6 +702,7 @@ MACHINE_START(NOKIA_N810, "Nokia N810")
+ 	.init_irq	= omap2_init_irq,
+ 	.init_machine	= n8x0_init_machine,
+ 	.timer		= &omap2_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+ 
+ MACHINE_START(NOKIA_N810_WIMAX, "Nokia N810 WiMAX")
+@@ -711,4 +713,5 @@ MACHINE_START(NOKIA_N810_WIMAX, "Nokia N810 WiMAX")
+ 	.init_irq	= omap2_init_irq,
+ 	.init_machine	= n8x0_init_machine,
+ 	.timer		= &omap2_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-omap3beagle.c b/arch/arm/mach-omap2/board-omap3beagle.c
+index 1843e14..bb6031f 100644
+--- a/arch/arm/mach-omap2/board-omap3beagle.c
++++ b/arch/arm/mach-omap2/board-omap3beagle.c
+@@ -561,4 +561,5 @@ MACHINE_START(OMAP3_BEAGLE, "OMAP3 Beagle Board")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= omap3_beagle_init,
+ 	.timer		= &omap3_secure_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-omap3evm.c b/arch/arm/mach-omap2/board-omap3evm.c
+index 1653d18..60912e4 100644
+--- a/arch/arm/mach-omap2/board-omap3evm.c
++++ b/arch/arm/mach-omap2/board-omap3evm.c
+@@ -683,4 +683,5 @@ MACHINE_START(OMAP3EVM, "OMAP3 EVM")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= omap3_evm_init,
+ 	.timer		= &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-omap3logic.c b/arch/arm/mach-omap2/board-omap3logic.c
+index 1b2a776..7ecf04a 100644
+--- a/arch/arm/mach-omap2/board-omap3logic.c
++++ b/arch/arm/mach-omap2/board-omap3logic.c
+@@ -210,6 +210,7 @@ MACHINE_START(OMAP3_TORPEDO, "Logic OMAP3 Torpedo board")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= omap3logic_init,
+ 	.timer		= &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+ 
+ MACHINE_START(OMAP3530_LV_SOM, "OMAP Logic 3530 LV SOM board")
+@@ -219,4 +220,5 @@ MACHINE_START(OMAP3530_LV_SOM, "OMAP Logic 3530 LV SOM board")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= omap3logic_init,
+ 	.timer		= &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-omap3pandora.c b/arch/arm/mach-omap2/board-omap3pandora.c
+index 6297e81..7071a24 100644
+--- a/arch/arm/mach-omap2/board-omap3pandora.c
++++ b/arch/arm/mach-omap2/board-omap3pandora.c
+@@ -608,4 +608,5 @@ MACHINE_START(OMAP3_PANDORA, "Pandora Handheld Console")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= omap3pandora_init,
+ 	.timer		= &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-omap3stalker.c b/arch/arm/mach-omap2/board-omap3stalker.c
+index ab22647..6e47987 100644
+--- a/arch/arm/mach-omap2/board-omap3stalker.c
++++ b/arch/arm/mach-omap2/board-omap3stalker.c
+@@ -456,4 +456,5 @@ MACHINE_START(SBC3530, "OMAP3 STALKER")
+ 	.init_irq		= omap3_init_irq,
+ 	.init_machine		= omap3_stalker_init,
+ 	.timer			= &omap3_secure_timer,
++	.restart		= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-omap3touchbook.c b/arch/arm/mach-omap2/board-omap3touchbook.c
+index 2741a34..5bb590a 100644
+--- a/arch/arm/mach-omap2/board-omap3touchbook.c
++++ b/arch/arm/mach-omap2/board-omap3touchbook.c
+@@ -383,4 +383,5 @@ MACHINE_START(TOUCHBOOK, "OMAP3 touchbook Board")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= omap3_touchbook_init,
+ 	.timer		= &omap3_secure_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-omap4panda.c b/arch/arm/mach-omap2/board-omap4panda.c
+index 7722d4d..955cbee 100644
+--- a/arch/arm/mach-omap2/board-omap4panda.c
++++ b/arch/arm/mach-omap2/board-omap4panda.c
+@@ -578,4 +578,5 @@ MACHINE_START(OMAP4_PANDA, "OMAP4 Panda board")
+ 	.init_irq	= gic_init_irq,
+ 	.init_machine	= omap4_panda_init,
+ 	.timer		= &omap4_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-overo.c b/arch/arm/mach-omap2/board-overo.c
+index 26c5cbb..c14d781 100644
+--- a/arch/arm/mach-omap2/board-overo.c
++++ b/arch/arm/mach-omap2/board-overo.c
+@@ -564,4 +564,5 @@ MACHINE_START(OVERO, "Gumstix Overo")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= overo_init,
+ 	.timer		= &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-rm680.c b/arch/arm/mach-omap2/board-rm680.c
+index 6ffb640..0c67ecc 100644
+--- a/arch/arm/mach-omap2/board-rm680.c
++++ b/arch/arm/mach-omap2/board-rm680.c
+@@ -151,4 +151,5 @@ MACHINE_START(NOKIA_RM680, "Nokia RM-680 board")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= rm680_init,
+ 	.timer		= &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-rx51.c b/arch/arm/mach-omap2/board-rx51.c
+index 8477313..c3e716a 100644
+--- a/arch/arm/mach-omap2/board-rx51.c
++++ b/arch/arm/mach-omap2/board-rx51.c
+@@ -129,4 +129,5 @@ MACHINE_START(NOKIA_RX51, "Nokia RX-51 board")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= rx51_init,
+ 	.timer		= &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-ti8168evm.c b/arch/arm/mach-omap2/board-ti8168evm.c
+index 8402b39..74713e3 100644
+--- a/arch/arm/mach-omap2/board-ti8168evm.c
++++ b/arch/arm/mach-omap2/board-ti8168evm.c
+@@ -48,4 +48,5 @@ MACHINE_START(TI8168EVM, "ti8168evm")
+ 	.init_irq	= ti816x_init_irq,
+ 	.timer		= &omap3_timer,
+ 	.init_machine	= ti8168_evm_init,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/board-zoom.c b/arch/arm/mach-omap2/board-zoom.c
+index bd58f92..68d6f1c 100644
+--- a/arch/arm/mach-omap2/board-zoom.c
++++ b/arch/arm/mach-omap2/board-zoom.c
+@@ -137,6 +137,7 @@ MACHINE_START(OMAP_ZOOM2, "OMAP Zoom2 board")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= omap_zoom_init,
+ 	.timer		= &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+ 
+ MACHINE_START(OMAP_ZOOM3, "OMAP Zoom3 board")
+@@ -147,4 +148,5 @@ MACHINE_START(OMAP_ZOOM3, "OMAP Zoom3 board")
+ 	.init_irq	= omap3_init_irq,
+ 	.init_machine	= omap_zoom_init,
+ 	.timer		= &omap3_timer,
++	.restart	= omap_prcm_restart,
+ MACHINE_END
+diff --git a/arch/arm/mach-omap2/common.h b/arch/arm/mach-omap2/common.h
+index 950b39d..1df1b39 100644
+--- a/arch/arm/mach-omap2/common.h
++++ b/arch/arm/mach-omap2/common.h
+@@ -84,6 +84,7 @@ void omap3_init_early(void);	/* Do not use this one */
+ void am35xx_init_early(void);
+ void ti816x_init_early(void);
+ void omap4430_init_early(void);
++void omap_prcm_restart(char, const char *);
+ 
+ /*
+  * IO bases for various OMAP processors
+diff --git a/arch/arm/mach-omap2/prcm.c b/arch/arm/mach-omap2/prcm.c
+index c35e5ce..626acfa 100644
+--- a/arch/arm/mach-omap2/prcm.c
++++ b/arch/arm/mach-omap2/prcm.c
+@@ -25,7 +25,6 @@
+ #include <linux/delay.h>
+ #include <linux/export.h>
+ 
+-#include <mach/system.h>
+ #include "common.h"
+ #include <plat/prcm.h>
+ #include <plat/irqs.h>
+@@ -59,7 +58,7 @@ u32 omap_prcm_get_reset_sources(void)
+ EXPORT_SYMBOL(omap_prcm_get_reset_sources);
+ 
+ /* Resets clock rates and reboots the system. Only called from system.h */
+-static void omap_prcm_arch_reset(char mode, const char *cmd)
++void omap_prcm_restart(char mode, const char *cmd)
+ {
+ 	s16 prcm_offs = 0;
+ 
+@@ -110,8 +109,6 @@ static void omap_prcm_arch_reset(char mode, const char *cmd)
+ 	omap2_prm_read_mod_reg(prcm_offs, OMAP2_RM_RSTCTRL); /* OCP barrier */
+ }
+ 
+-void (*arch_reset)(char, const char *) = omap_prcm_arch_reset;
+-
+ /**
+  * omap2_cm_wait_idlest - wait for IDLEST bit to indicate module readiness
+  * @reg: physical address of module IDLEST register
+diff --git a/arch/arm/plat-omap/include/plat/system.h b/arch/arm/plat-omap/include/plat/system.h
+index c5fa9e9..910f15f 100644
+--- a/arch/arm/plat-omap/include/plat/system.h
++++ b/arch/arm/plat-omap/include/plat/system.h
+@@ -12,6 +12,8 @@ static inline void arch_idle(void)
+ 	cpu_do_idle();
+ }
+ 
+-extern void (*arch_reset)(char, const char *);
++static inline void arch_reset(char mode, const char *cmd)
++{
++}
+ 
+ #endif
+commit d0a337581eb9f2bb4c7bde5ade93cc44fd72a521
+Author: Mans Rullgard <mans.rullgard@linaro.org>
+
+    LINARO: SAUCE: ASoC: omap: convert per-board modules to platform drivers
+
+diff --git a/arch/arm/mach-omap2/devices.c b/arch/arm/mach-omap2/devices.c
+index c15cfad..0f0b320 100644
+--- a/arch/arm/mach-omap2/devices.c
++++ b/arch/arm/mach-omap2/devices.c
+@@ -285,6 +285,10 @@ static struct platform_device omap_pcm = {
+ 	.id	= -1,
+ };
+ 
++static struct platform_device omap_soc_audio = {
++	.id	= -1,
++};
++
+ /*
+  * OMAP2420 has 2 McBSP ports
+  * OMAP2430 has 5 McBSP ports
+@@ -297,8 +301,30 @@ OMAP_MCBSP_PLATFORM_DEVICE(3);
+ OMAP_MCBSP_PLATFORM_DEVICE(4);
+ OMAP_MCBSP_PLATFORM_DEVICE(5);
+ 
++static struct {
++	int machine;
++	const char *name;
++} soc_device_names[] = {
++	{ MACH_TYPE_OMAP3517EVM,	"am3517evm-soc-audio"	},
++	{ MACH_TYPE_IGEP0020,		"igep2-soc-audio"	},
++	{ MACH_TYPE_NOKIA_N810,		"n8x1-soc-audio"	},
++	{ MACH_TYPE_NOKIA_N810_WIMAX,	"n8x1-soc-audio"	},
++	{ MACH_TYPE_OMAP3_BEAGLE,	"omap3beagle-soc-audio"	},
++	{ MACH_TYPE_DEVKIT8000,		"omap3beagle-soc-audio"	},
++	{ MACH_TYPE_OMAP3EVM,		"omap3evm-soc-audio"	},
++	{ MACH_TYPE_OMAP3_PANDORA,	"pandora-soc-audio"	},
++	{ MACH_TYPE_OVERO,		"overo-soc-audio",	},
++	{ MACH_TYPE_CM_T35,		"overo-soc-audio",	},
++	{ MACH_TYPE_NOKIA_RX51,		"rx51-soc-audio",	},
++	{ MACH_TYPE_OMAP_3430SDP,	"sdp3430-soc-audio",	},
++	{ MACH_TYPE_OMAP_4430SDP,	"sdp4430-soc-audio",	},
++	{ MACH_TYPE_OMAP_ZOOM2,		"zoom2-soc-audio",	},
++};
++
+ static void omap_init_audio(void)
+ {
++	int i;
++
+ 	platform_device_register(&omap_mcbsp1);
+ 	platform_device_register(&omap_mcbsp2);
+ 	if (cpu_is_omap243x() || cpu_is_omap34xx() || cpu_is_omap44xx()) {
+@@ -309,6 +335,14 @@ static void omap_init_audio(void)
+ 		platform_device_register(&omap_mcbsp5);
+ 
+ 	platform_device_register(&omap_pcm);
++
++	for (i = 0; i < ARRAY_SIZE(soc_device_names); i++) {
++		if (machine_arch_type == soc_device_names[i].machine) {
++			omap_soc_audio.name = soc_device_names[i].name;
++			platform_device_register(&omap_soc_audio);
++			break;
++		}
++	}
+ }
+ 
+ #else
+diff --git a/sound/soc/omap/am3517evm.c b/sound/soc/omap/am3517evm.c
+index c1cd4a0..df8f795 100644
+--- a/sound/soc/omap/am3517evm.c
++++ b/sound/soc/omap/am3517evm.c
+@@ -116,45 +116,57 @@ static struct snd_soc_card snd_soc_am3517evm = {
+ 	.num_dapm_routes = ARRAY_SIZE(audio_map),
+ };
+ 
+-static struct platform_device *am3517evm_snd_device;
+-
+-static int __init am3517evm_soc_init(void)
++static int __devinit am3517evm_soc_probe(struct platform_device *pdev)
+ {
++	struct snd_soc_card *card = &snd_soc_am3517evm;
+ 	int ret;
+ 
+-	if (!machine_is_omap3517evm())
+-		return -ENODEV;
+ 	pr_info("OMAP3517 / AM3517 EVM SoC init\n");
+ 
+-	am3517evm_snd_device = platform_device_alloc("soc-audio", -1);
+-	if (!am3517evm_snd_device) {
+-		printk(KERN_ERR "Platform device allocation failed\n");
+-		return -ENOMEM;
++	card->dev = &pdev->dev;
++
++	ret = snd_soc_register_card(card);
++	if (ret) {
++		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
++			ret);
++		return ret;
+ 	}
+ 
+-	platform_set_drvdata(am3517evm_snd_device, &snd_soc_am3517evm);
++	return 0;
++}
++
++static int __devexit am3517evm_soc_remove(struct platform_device *pdev)
++{
++	struct snd_soc_card *card = platform_get_drvdata(pdev);
+ 
+-	ret = platform_device_add(am3517evm_snd_device);
+-	if (ret)
+-		goto err1;
++	snd_soc_unregister_card(card);
+ 
+ 	return 0;
++}
++
++static struct platform_driver am3517evm_driver = {
++	.driver = {
++		.name = "am3517evm-soc-audio",
++		.owner = THIS_MODULE,
++	},
+ 
+-err1:
+-	printk(KERN_ERR "Unable to add platform device\n");
+-	platform_device_put(am3517evm_snd_device);
++	.probe = am3517evm_soc_probe,
++	.remove = __devexit_p(am3517evm_soc_remove),
++};
+ 
+-	return ret;
++static int __init am3517evm_soc_init(void)
++{
++	return platform_driver_register(&am3517evm_driver);
+ }
++module_init(am3517evm_soc_init);
+ 
+ static void __exit am3517evm_soc_exit(void)
+ {
+-	platform_device_unregister(am3517evm_snd_device);
++	platform_driver_unregister(&am3517evm_driver);
+ }
+-
+-module_init(am3517evm_soc_init);
+ module_exit(am3517evm_soc_exit);
+ 
+ MODULE_AUTHOR("Anuj Aggarwal <anuj.aggarwal@ti.com>");
+ MODULE_DESCRIPTION("ALSA SoC OMAP3517 / AM3517 EVM");
+ MODULE_LICENSE("GPL v2");
++MODULE_ALIAS("platform:am3517evm-soc-audio");
+diff --git a/sound/soc/omap/igep0020.c b/sound/soc/omap/igep0020.c
+index 591fbf8..6446532 100644
+--- a/sound/soc/omap/igep0020.c
++++ b/sound/soc/omap/igep0020.c
+@@ -76,44 +76,57 @@ static struct snd_soc_card snd_soc_card_igep2 = {
+ 	.num_links = 1,
+ };
+ 
+-static struct platform_device *igep2_snd_device;
+-
+-static int __init igep2_soc_init(void)
++static int __devinit igep2_soc_probe(struct platform_device *pdev)
+ {
++	struct snd_soc_card *card = &snd_soc_card_igep2;
+ 	int ret;
+ 
+-	if (!machine_is_igep0020())
+-		return -ENODEV;
+ 	printk(KERN_INFO "IGEP v2 SoC init\n");
+ 
+-	igep2_snd_device = platform_device_alloc("soc-audio", -1);
+-	if (!igep2_snd_device) {
+-		printk(KERN_ERR "Platform device allocation failed\n");
+-		return -ENOMEM;
++	card->dev = &pdev->dev;
++
++	ret = snd_soc_register_card(card);
++	if (ret) {
++		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
++			ret);
++		return ret;
+ 	}
+ 
+-	platform_set_drvdata(igep2_snd_device, &snd_soc_card_igep2);
++	return 0;
++}
+ 
+-	ret = platform_device_add(igep2_snd_device);
+-	if (ret)
+-		goto err1;
++static int __devexit igep2_soc_remove(struct platform_device *pdev)
++{
++	struct snd_soc_card *card = platform_get_drvdata(pdev);
++
++	snd_soc_unregister_card(card);
+ 
+ 	return 0;
++}
++
++static struct platform_driver igep2_driver = {
++	.driver = {
++		.name = "igep2-soc-audio",
++		.owner = THIS_MODULE,
++	},
+ 
+-err1:
+-	printk(KERN_ERR "Unable to add platform device\n");
+-	platform_device_put(igep2_snd_device);
++	.probe = igep2_soc_probe,
++	.remove = __devexit_p(igep2_soc_remove),
++};
+ 
+-	return ret;
++static int __init igep2_soc_init(void)
++{
++	return platform_driver_register(&igep2_driver);
+ }
+ module_init(igep2_soc_init);
+ 
+ static void __exit igep2_soc_exit(void)
+ {
+-	platform_device_unregister(igep2_snd_device);
++	platform_driver_unregister(&igep2_driver);
+ }
+ module_exit(igep2_soc_exit);
+ 
+ MODULE_AUTHOR("Enric Balletbo i Serra <eballetbo@iseebcn.com>");
+ MODULE_DESCRIPTION("ALSA SoC IGEP v2");
+ MODULE_LICENSE("GPL");
++MODULE_ALIAS("platform:igep2-soc-audio");
+diff --git a/sound/soc/omap/n810.c b/sound/soc/omap/n810.c
+index fc6209b..1db768c 100644
+--- a/sound/soc/omap/n810.c
++++ b/sound/soc/omap/n810.c
+@@ -300,38 +300,25 @@ static struct snd_soc_card snd_soc_n810 = {
+ 	.num_dapm_routes = ARRAY_SIZE(audio_map),
+ };
+ 
+-static struct platform_device *n810_snd_device;
+-
+-static int __init n810_soc_init(void)
++static int __devinit n810_soc_probe(struct platform_device *pdev)
+ {
++	struct snd_soc_card *card = &snd_soc_n810;
++	struct device *dev = &pdev->dev;
+ 	int err;
+-	struct device *dev;
+-
+-	if (!(machine_is_nokia_n810() || machine_is_nokia_n810_wimax()))
+-		return -ENODEV;
+-
+-	n810_snd_device = platform_device_alloc("soc-audio", -1);
+-	if (!n810_snd_device)
+-		return -ENOMEM;
+ 
+-	platform_set_drvdata(n810_snd_device, &snd_soc_n810);
+-	err = platform_device_add(n810_snd_device);
+-	if (err)
+-		goto err1;
+-
+-	dev = &n810_snd_device->dev;
++	card->dev = dev;
+ 
+ 	sys_clkout2_src = clk_get(dev, "sys_clkout2_src");
+ 	if (IS_ERR(sys_clkout2_src)) {
+ 		dev_err(dev, "Could not get sys_clkout2_src clock\n");
+ 		err = PTR_ERR(sys_clkout2_src);
+-		goto err2;
++		return err;
+ 	}
+ 	sys_clkout2 = clk_get(dev, "sys_clkout2");
+ 	if (IS_ERR(sys_clkout2)) {
+ 		dev_err(dev, "Could not get sys_clkout2\n");
+ 		err = PTR_ERR(sys_clkout2);
+-		goto err3;
++		goto err1;
+ 	}
+ 	/*
+ 	 * Configure 12 MHz output on SYS_CLKOUT2. Therefore we must use
+@@ -341,7 +328,7 @@ static int __init n810_soc_init(void)
+ 	if (IS_ERR(func96m_clk)) {
+ 		dev_err(dev, "Could not get func 96M clock\n");
+ 		err = PTR_ERR(func96m_clk);
+-		goto err4;
++		goto err2;
+ 	}
+ 	clk_set_parent(sys_clkout2_src, func96m_clk);
+ 	clk_set_rate(sys_clkout2, 12000000);
+@@ -352,33 +339,62 @@ static int __init n810_soc_init(void)
+ 	gpio_direction_output(N810_HEADSET_AMP_GPIO, 0);
+ 	gpio_direction_output(N810_SPEAKER_AMP_GPIO, 0);
+ 
++	err = snd_soc_register_card(card);
++	if (err) {
++		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
++			err);
++		goto err3;
++	}
++
+ 	return 0;
+-err4:
+-	clk_put(sys_clkout2);
+ err3:
+-	clk_put(sys_clkout2_src);
++	clk_put(func96m_clk);
+ err2:
+-	platform_device_del(n810_snd_device);
++	clk_put(sys_clkout2);
+ err1:
+-	platform_device_put(n810_snd_device);
++	clk_put(sys_clkout2_src);
+ 
+ 	return err;
+ }
+ 
+-static void __exit n810_soc_exit(void)
++static int __devexit n810_soc_remove(struct platform_device *pdev)
+ {
++	struct snd_soc_card *card = platform_get_drvdata(pdev);
++
+ 	gpio_free(N810_SPEAKER_AMP_GPIO);
+ 	gpio_free(N810_HEADSET_AMP_GPIO);
+ 	clk_put(sys_clkout2_src);
+ 	clk_put(sys_clkout2);
+ 	clk_put(func96m_clk);
+ 
+-	platform_device_unregister(n810_snd_device);
++	snd_soc_unregister_card(card);
++
++	return 0;
+ }
+ 
++static struct platform_driver n810_driver = {
++	.driver = {
++		.name = "n8x0-soc-audio",
++		.owner = THIS_MODULE,
++	},
++
++	.probe = n810_soc_probe,
++	.remove = __devexit_p(n810_soc_remove),
++};
++
++static int __init n810_soc_init(void)
++{
++	return platform_driver_register(&n810_driver);
++}
+ module_init(n810_soc_init);
++
++static void __exit n810_soc_exit(void)
++{
++	platform_driver_unregister(&n810_driver);
++}
+ module_exit(n810_soc_exit);
+ 
+ MODULE_AUTHOR("Jarkko Nikula <jarkko.nikula@bitmer.com>");
+ MODULE_DESCRIPTION("ALSA SoC Nokia N810");
+ MODULE_LICENSE("GPL");
++MODULE_ALIAS("platform:n8x0-soc-audio");
+diff --git a/sound/soc/omap/omap3beagle.c b/sound/soc/omap/omap3beagle.c
+index 3357dcc..10b51d8 100644
+--- a/sound/soc/omap/omap3beagle.c
++++ b/sound/soc/omap/omap3beagle.c
+@@ -106,45 +106,57 @@ static struct snd_soc_card snd_soc_omap3beagle = {
+ 	.num_links = 1,
+ };
+ 
+-static struct platform_device *omap3beagle_snd_device;
+-
+-static int __init omap3beagle_soc_init(void)
++static int __devinit omap3beagle_soc_probe(struct platform_device *pdev)
+ {
++	struct snd_soc_card *card = &snd_soc_omap3beagle;
+ 	int ret;
+ 
+-	if (!(machine_is_omap3_beagle() || machine_is_devkit8000()))
+-		return -ENODEV;
+ 	pr_info("OMAP3 Beagle/Devkit8000 SoC init\n");
+ 
+-	omap3beagle_snd_device = platform_device_alloc("soc-audio", -1);
+-	if (!omap3beagle_snd_device) {
+-		printk(KERN_ERR "Platform device allocation failed\n");
+-		return -ENOMEM;
++	card->dev = &pdev->dev;
++
++	ret = snd_soc_register_card(card);
++	if (ret) {
++		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
++			ret);
++		return ret;
+ 	}
+ 
+-	platform_set_drvdata(omap3beagle_snd_device, &snd_soc_omap3beagle);
++	return 0;
++}
++
++static int __devexit omap3beagle_soc_remove(struct platform_device *pdev)
++{
++	struct snd_soc_card *card = platform_get_drvdata(pdev);
+ 
+-	ret = platform_device_add(omap3beagle_snd_device);
+-	if (ret)
+-		goto err1;
++	snd_soc_unregister_card(card);
+ 
+ 	return 0;
++}
++
++static struct platform_driver omap3beagle_driver = {
++	.driver = {
++		.name = "omap3beagle-soc-audio",
++		.owner = THIS_MODULE,
++	},
+ 
+-err1:
+-	printk(KERN_ERR "Unable to add platform device\n");
+-	platform_device_put(omap3beagle_snd_device);
++	.probe = omap3beagle_soc_probe,
++	.remove = __devexit_p(omap3beagle_soc_remove),
++};
+ 
+-	return ret;
++static int __init omap3beagle_soc_init(void)
++{
++	return platform_driver_register(&omap3beagle_driver);
+ }
++module_init(omap3beagle_soc_init);
+ 
+ static void __exit omap3beagle_soc_exit(void)
+ {
+-	platform_device_unregister(omap3beagle_snd_device);
++	platform_driver_unregister(&omap3beagle_driver);
+ }
+-
+-module_init(omap3beagle_soc_init);
+ module_exit(omap3beagle_soc_exit);
+ 
+ MODULE_AUTHOR("Steve Sakoman <steve@sakoman.com>");
+ MODULE_DESCRIPTION("ALSA SoC OMAP3 Beagle");
+ MODULE_LICENSE("GPL");
++MODULE_ALIAS("platform:omap3beagle-soc-audio");
+diff --git a/sound/soc/omap/omap3evm.c b/sound/soc/omap/omap3evm.c
+index 6857895..3b95cea 100644
+--- a/sound/soc/omap/omap3evm.c
++++ b/sound/soc/omap/omap3evm.c
+@@ -74,44 +74,57 @@ static struct snd_soc_card snd_soc_omap3evm = {
+ 	.num_links = 1,
+ };
+ 
+-static struct platform_device *omap3evm_snd_device;
+-
+-static int __init omap3evm_soc_init(void)
++static int __devinit omap3evm_soc_probe(struct platform_device *pdev)
+ {
++	struct snd_soc_card *card = &snd_soc_omap3evm;
+ 	int ret;
+ 
+-	if (!machine_is_omap3evm())
+-		return -ENODEV;
+ 	pr_info("OMAP3 EVM SoC init\n");
+ 
+-	omap3evm_snd_device = platform_device_alloc("soc-audio", -1);
+-	if (!omap3evm_snd_device) {
+-		printk(KERN_ERR "Platform device allocation failed\n");
+-		return -ENOMEM;
++	card->dev = &pdev->dev;
++
++	ret = snd_soc_register_card(card);
++	if (ret) {
++		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
++			ret);
++		return ret;
+ 	}
+ 
+-	platform_set_drvdata(omap3evm_snd_device, &snd_soc_omap3evm);
+-	ret = platform_device_add(omap3evm_snd_device);
+-	if (ret)
+-		goto err1;
++	return 0;
++}
++
++static int __devexit omap3evm_soc_remove(struct platform_device *pdev)
++{
++	struct snd_soc_card *card = platform_get_drvdata(pdev);
++
++	snd_soc_unregister_card(card);
+ 
+ 	return 0;
++}
++
++static struct platform_driver omap3evm_driver = {
++	.driver = {
++		.name = "omap3evm-soc-audio",
++		.owner = THIS_MODULE,
++	},
+ 
+-err1:
+-	printk(KERN_ERR "Unable to add platform device\n");
+-	platform_device_put(omap3evm_snd_device);
++	.probe = omap3evm_soc_probe,
++	.remove = __devexit_p(omap3evm_soc_remove),
++};
+ 
+-	return ret;
++static int __init omap3evm_soc_init(void)
++{
++	return platform_driver_register(&omap3evm_driver);
+ }
++module_init(omap3evm_soc_init);
+ 
+ static void __exit omap3evm_soc_exit(void)
+ {
+-	platform_device_unregister(omap3evm_snd_device);
++	platform_driver_unregister(&omap3evm_driver);
+ }
+-
+-module_init(omap3evm_soc_init);
+ module_exit(omap3evm_soc_exit);
+ 
+ MODULE_AUTHOR("Anuj Aggarwal <anuj.aggarwal@ti.com>");
+ MODULE_DESCRIPTION("ALSA SoC OMAP3 EVM");
+ MODULE_LICENSE("GPL v2");
++MODULE_ALIAS("platform:omap3evm-soc-audio");
+diff --git a/sound/soc/omap/omap3pandora.c b/sound/soc/omap/omap3pandora.c
+index 7605c37..fd289a4 100644
+--- a/sound/soc/omap/omap3pandora.c
++++ b/sound/soc/omap/omap3pandora.c
+@@ -237,17 +237,15 @@ static struct snd_soc_card snd_soc_card_omap3pandora = {
+ 	.num_links = ARRAY_SIZE(omap3pandora_dai),
+ };
+ 
+-static struct platform_device *omap3pandora_snd_device;
+-
+-static int __init omap3pandora_soc_init(void)
++static int __devinit omap3pandora_soc_probe(struct platform_device *pdev)
+ {
++	struct snd_soc_card *card = &snd_soc_card_omap3pandora;
+ 	int ret;
+ 
+-	if (!machine_is_omap3_pandora())
+-		return -ENODEV;
+-
+ 	pr_info("OMAP3 Pandora SoC init\n");
+ 
++	card->dev = &pdev->dev;
++
+ 	ret = gpio_request(OMAP3_PANDORA_DAC_POWER_GPIO, "dac_power");
+ 	if (ret) {
+ 		pr_err(PREFIX "Failed to get DAC power GPIO\n");
+@@ -272,53 +270,68 @@ static int __init omap3pandora_soc_init(void)
+ 		goto fail1;
+ 	}
+ 
+-	omap3pandora_snd_device = platform_device_alloc("soc-audio", -1);
+-	if (omap3pandora_snd_device == NULL) {
+-		pr_err(PREFIX "Platform device allocation failed\n");
+-		ret = -ENOMEM;
+-		goto fail1;
+-	}
+-
+-	platform_set_drvdata(omap3pandora_snd_device, &snd_soc_card_omap3pandora);
+-
+-	ret = platform_device_add(omap3pandora_snd_device);
++	ret = snd_soc_register_card(card);
+ 	if (ret) {
+-		pr_err(PREFIX "Unable to add platform device\n");
+-		goto fail2;
++		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
++			ret);
++		goto fail1;
+ 	}
+ 
+-	omap3pandora_dac_reg = regulator_get(&omap3pandora_snd_device->dev, "vcc");
++	omap3pandora_dac_reg = regulator_get(card->dev, "vcc");
+ 	if (IS_ERR(omap3pandora_dac_reg)) {
+ 		pr_err(PREFIX "Failed to get DAC regulator from %s: %ld\n",
+-			dev_name(&omap3pandora_snd_device->dev),
++			dev_name(card->dev),
+ 			PTR_ERR(omap3pandora_dac_reg));
+ 		ret = PTR_ERR(omap3pandora_dac_reg);
+-		goto fail3;
++		goto fail2;
+ 	}
+ 
+ 	return 0;
+ 
+-fail3:
+-	platform_device_del(omap3pandora_snd_device);
+ fail2:
+-	platform_device_put(omap3pandora_snd_device);
++	snd_soc_unregister_card(card);
+ fail1:
+ 	gpio_free(OMAP3_PANDORA_AMP_POWER_GPIO);
+ fail0:
+ 	gpio_free(OMAP3_PANDORA_DAC_POWER_GPIO);
+ 	return ret;
+ }
+-module_init(omap3pandora_soc_init);
+ 
+-static void __exit omap3pandora_soc_exit(void)
++static int __devexit omap3pandora_soc_remove(struct platform_device *pdev)
+ {
++	struct snd_soc_card *card = platform_get_drvdata(pdev);
++
+ 	regulator_put(omap3pandora_dac_reg);
+-	platform_device_unregister(omap3pandora_snd_device);
++	snd_soc_unregister_card(card);
+ 	gpio_free(OMAP3_PANDORA_AMP_POWER_GPIO);
+ 	gpio_free(OMAP3_PANDORA_DAC_POWER_GPIO);
++
++	return 0;
++}
++
++static struct platform_driver omap3pandora_driver = {
++	.driver = {
++		.name = "pandora-soc-audio",
++		.owner = THIS_MODULE,
++	},
++
++	.probe = omap3pandora_soc_probe,
++	.remove = __devexit_p(omap3pandora_soc_remove),
++};
++
++static int __init omap3pandora_soc_init(void)
++{
++	return platform_driver_register(&omap3pandora_driver);
++}
++module_init(omap3pandora_soc_init);
++
++static void __exit omap3pandora_soc_exit(void)
++{
++	platform_driver_unregister(&omap3pandora_driver);
+ }
+ module_exit(omap3pandora_soc_exit);
+ 
+ MODULE_AUTHOR("Grazvydas Ignotas <notasas@gmail.com>");
+ MODULE_DESCRIPTION("ALSA SoC OMAP3 Pandora");
+ MODULE_LICENSE("GPL");
++MODULE_ALIAS("platform:pandora-soc-audio");
+diff --git a/sound/soc/omap/overo.c b/sound/soc/omap/overo.c
+index c3550ae..fe8fd5e 100644
+--- a/sound/soc/omap/overo.c
++++ b/sound/soc/omap/overo.c
+@@ -76,46 +76,57 @@ static struct snd_soc_card snd_soc_card_overo = {
+ 	.num_links = 1,
+ };
+ 
+-static struct platform_device *overo_snd_device;
+-
+-static int __init overo_soc_init(void)
++static int __devinit overo_soc_probe(struct platform_device *pdev)
+ {
++	struct snd_soc_card *card = &snd_soc_card_overo;
+ 	int ret;
+ 
+-	if (!(machine_is_overo() || machine_is_cm_t35())) {
+-		pr_debug("Incomatible machine!\n");
+-		return -ENODEV;
+-	}
+-	printk(KERN_INFO "overo SoC init\n");
++	pr_info("overo SoC init\n");
++
++	card->dev = &pdev->dev;
+ 
+-	overo_snd_device = platform_device_alloc("soc-audio", -1);
+-	if (!overo_snd_device) {
+-		printk(KERN_ERR "Platform device allocation failed\n");
+-		return -ENOMEM;
++	ret = snd_soc_register_card(card);
++	if (ret) {
++		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
++			ret);
++		return ret;
+ 	}
+ 
+-	platform_set_drvdata(overo_snd_device, &snd_soc_card_overo);
++	return 0;
++}
++
++static int __devexit overo_soc_remove(struct platform_device *pdev)
++{
++	struct snd_soc_card *card = platform_get_drvdata(pdev);
+ 
+-	ret = platform_device_add(overo_snd_device);
+-	if (ret)
+-		goto err1;
++	snd_soc_unregister_card(card);
+ 
+ 	return 0;
++}
+ 
+-err1:
+-	printk(KERN_ERR "Unable to add platform device\n");
+-	platform_device_put(overo_snd_device);
++static struct platform_driver overo_driver = {
++	.driver = {
++		.name = "overo-soc-audio",
++		.owner = THIS_MODULE,
++	},
+ 
+-	return ret;
++	.probe = overo_soc_probe,
++	.remove = __devexit_p(overo_soc_remove),
++};
++
++static int __init overo_soc_init(void)
++{
++	return platform_driver_register(&overo_driver);
+ }
+ module_init(overo_soc_init);
+ 
+ static void __exit overo_soc_exit(void)
+ {
+-	platform_device_unregister(overo_snd_device);
++	platform_driver_unregister(&overo_driver);
+ }
+ module_exit(overo_soc_exit);
+ 
+ MODULE_AUTHOR("Steve Sakoman <steve@sakoman.com>");
+ MODULE_DESCRIPTION("ALSA SoC overo");
+ MODULE_LICENSE("GPL");
++MODULE_ALIAS("platform:overo-soc-audio");
+diff --git a/sound/soc/omap/rx51.c b/sound/soc/omap/rx51.c
+index 4cabb74..aca084d 100644
+--- a/sound/soc/omap/rx51.c
++++ b/sound/soc/omap/rx51.c
+@@ -391,14 +391,12 @@ static struct snd_soc_card rx51_sound_card = {
+ 	.num_configs = ARRAY_SIZE(rx51_codec_conf),
+ };
+ 
+-static struct platform_device *rx51_snd_device;
+-
+-static int __init rx51_soc_init(void)
++static int __devinit rx51_soc_probe(struct platform_device *pdev)
+ {
++	struct snd_soc_card *card = &rx51_sound_card;
+ 	int err;
+ 
+-	if (!machine_is_nokia_rx51())
+-		return -ENODEV;
++	card->dev = &pdev->dev;
+ 
+ 	err = gpio_request_one(RX51_TVOUT_SEL_GPIO,
+ 			       GPIOF_DIR_OUT | GPIOF_INIT_LOW, "tvout_sel");
+@@ -409,21 +407,14 @@ static int __init rx51_soc_init(void)
+ 	if (err)
+ 		goto err_gpio_eci_sw;
+ 
+-	rx51_snd_device = platform_device_alloc("soc-audio", -1);
+-	if (!rx51_snd_device) {
+-		err = -ENOMEM;
++	err = snd_soc_register_card(card);
++	if (err) {
++		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
++			err);
+ 		goto err1;
+ 	}
+ 
+-	platform_set_drvdata(rx51_snd_device, &rx51_sound_card);
+-
+-	err = platform_device_add(rx51_snd_device);
+-	if (err)
+-		goto err2;
+-
+ 	return 0;
+-err2:
+-	platform_device_put(rx51_snd_device);
+ err1:
+ 	gpio_free(RX51_ECI_SW_GPIO);
+ err_gpio_eci_sw:
+@@ -433,19 +424,44 @@ err_gpio_tvout_sel:
+ 	return err;
+ }
+ 
+-static void __exit rx51_soc_exit(void)
++static int __devexit rx51_soc_remove(struct platform_device *pdev)
+ {
++	struct snd_soc_card *card = platform_get_drvdata(pdev);
++
+ 	snd_soc_jack_free_gpios(&rx51_av_jack, ARRAY_SIZE(rx51_av_jack_gpios),
+ 				rx51_av_jack_gpios);
+ 
+-	platform_device_unregister(rx51_snd_device);
++	snd_soc_unregister_card(card);
++
+ 	gpio_free(RX51_ECI_SW_GPIO);
+ 	gpio_free(RX51_TVOUT_SEL_GPIO);
++
++	return 0;
+ }
+ 
++static struct platform_driver rx51_driver = {
++	.driver = {
++		.name = "rx51-soc-audio",
++		.owner = THIS_MODULE,
++	},
++
++	.probe = rx51_soc_probe,
++	.remove = __devexit_p(rx51_soc_remove),
++};
++
++static int __init rx51_soc_init(void)
++{
++	return platform_driver_register(&rx51_driver);
++}
+ module_init(rx51_soc_init);
++
++static void __exit rx51_soc_exit(void)
++{
++	platform_driver_unregister(&rx51_driver);
++}
+ module_exit(rx51_soc_exit);
+ 
+ MODULE_AUTHOR("Nokia Corporation");
+ MODULE_DESCRIPTION("ALSA SoC Nokia RX-51");
+ MODULE_LICENSE("GPL");
++MODULE_ALIAS("platform:rx51-soc-audio");
+diff --git a/sound/soc/omap/sdp3430.c b/sound/soc/omap/sdp3430.c
+index e8fbf8e..09fd5bd 100644
+--- a/sound/soc/omap/sdp3430.c
++++ b/sound/soc/omap/sdp3430.c
+@@ -222,24 +222,15 @@ static struct snd_soc_card snd_soc_sdp3430 = {
+ 	.num_dapm_routes = ARRAY_SIZE(audio_map),
+ };
+ 
+-static struct platform_device *sdp3430_snd_device;
+-
+-static int __init sdp3430_soc_init(void)
++static int __devinit sdp3430_soc_probe(struct platform_device *pdev)
+ {
++	struct snd_soc_card *card = &snd_soc_sdp3430;
+ 	int ret;
+ 	u8 pin_mux;
+ 
+-	if (!machine_is_omap_3430sdp())
+-		return -ENODEV;
+-	printk(KERN_INFO "SDP3430 SoC init\n");
+-
+-	sdp3430_snd_device = platform_device_alloc("soc-audio", -1);
+-	if (!sdp3430_snd_device) {
+-		printk(KERN_ERR "Platform device allocation failed\n");
+-		return -ENOMEM;
+-	}
++	pr_info("SDP3430 SoC init\n");
+ 
+-	platform_set_drvdata(sdp3430_snd_device, &snd_soc_sdp3430);
++	card->dev = &pdev->dev;
+ 
+ 	/* Set TWL4030 GPIO6 as EXTMUTE signal */
+ 	twl_i2c_read_u8(TWL4030_MODULE_INTBR, &pin_mux,
+@@ -249,30 +240,51 @@ static int __init sdp3430_soc_init(void)
+ 	twl_i2c_write_u8(TWL4030_MODULE_INTBR, pin_mux,
+ 						TWL4030_INTBR_PMBR1);
+ 
+-	ret = platform_device_add(sdp3430_snd_device);
+-	if (ret)
+-		goto err1;
++	ret = snd_soc_register_card(card);
++	if (ret) {
++		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
++			ret);
++		return ret;
++	}
+ 
+ 	return 0;
++}
+ 
+-err1:
+-	printk(KERN_ERR "Unable to add platform device\n");
+-	platform_device_put(sdp3430_snd_device);
++static int __devexit sdp3430_soc_remove(struct platform_device *pdev)
++{
++	struct snd_soc_card *card = platform_get_drvdata(pdev);
+ 
+-	return ret;
++	snd_soc_jack_free_gpios(&hs_jack, ARRAY_SIZE(hs_jack_gpios),
++				hs_jack_gpios);
++
++	snd_soc_unregister_card(card);
++
++	return 0;
++}
++
++static struct platform_driver sdp3430_driver = {
++	.driver = {
++		.name = "sdp3430-soc-audio",
++		.owner = THIS_MODULE,
++	},
++
++	.probe = sdp3430_soc_probe,
++	.remove = __devexit_p(sdp3430_soc_remove),
++};
++
++static int __init sdp3430_soc_init(void)
++{
++	return platform_driver_register(&sdp3430_driver);
+ }
+ module_init(sdp3430_soc_init);
+ 
+ static void __exit sdp3430_soc_exit(void)
+ {
+-	snd_soc_jack_free_gpios(&hs_jack, ARRAY_SIZE(hs_jack_gpios),
+-				hs_jack_gpios);
+-
+-	platform_device_unregister(sdp3430_snd_device);
++	platform_driver_unregister(&sdp3430_driver);
+ }
+ module_exit(sdp3430_soc_exit);
+ 
+ MODULE_AUTHOR("Misael Lopez Cruz <x0052729@ti.com>");
+ MODULE_DESCRIPTION("ALSA SoC SDP3430");
+ MODULE_LICENSE("GPL");
+-
++MODULE_ALIAS("platform:sdp3430-soc-audio");
+diff --git a/sound/soc/omap/sdp4430.c b/sound/soc/omap/sdp4430.c
+index 03d9fa4..b3a05b1 100644
+--- a/sound/soc/omap/sdp4430.c
++++ b/sound/soc/omap/sdp4430.c
+@@ -172,44 +172,57 @@ static struct snd_soc_card snd_soc_sdp4430 = {
+ 	.num_dapm_routes = ARRAY_SIZE(audio_map),
+ };
+ 
+-static struct platform_device *sdp4430_snd_device;
+-
+-static int __init sdp4430_soc_init(void)
++static int __devinit sdp4430_soc_probe(struct platform_device *pdev)
+ {
++	struct snd_soc_card *card = &snd_soc_sdp4430;
+ 	int ret;
+ 
+-	if (!machine_is_omap_4430sdp())
+-		return -ENODEV;
+-	printk(KERN_INFO "SDP4430 SoC init\n");
++	pr_info("SDP4430 SoC init\n");
++
++	card->dev = &pdev->dev;
+ 
+-	sdp4430_snd_device = platform_device_alloc("soc-audio", -1);
+-	if (!sdp4430_snd_device) {
+-		printk(KERN_ERR "Platform device allocation failed\n");
+-		return -ENOMEM;
++	ret = snd_soc_register_card(card);
++	if (ret) {
++		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
++			ret);
++		return ret;
+ 	}
+ 
+-	platform_set_drvdata(sdp4430_snd_device, &snd_soc_sdp4430);
++	return 0;
++}
+ 
+-	ret = platform_device_add(sdp4430_snd_device);
+-	if (ret)
+-		goto err;
++static int __devexit sdp4430_soc_remove(struct platform_device *pdev)
++{
++	struct snd_soc_card *card = platform_get_drvdata(pdev);
++
++	snd_soc_unregister_card(card);
+ 
+ 	return 0;
++}
+ 
+-err:
+-	printk(KERN_ERR "Unable to add platform device\n");
+-	platform_device_put(sdp4430_snd_device);
+-	return ret;
++static struct platform_driver sdp4430_driver = {
++	.driver = {
++		.name = "sdp4430-soc-audio",
++		.owner = THIS_MODULE,
++	},
++
++	.probe = sdp4430_soc_probe,
++	.remove = __devexit_p(sdp4430_soc_remove),
++};
++
++static int __init sdp4430_soc_init(void)
++{
++	return platform_driver_register(&sdp4430_driver);
+ }
+ module_init(sdp4430_soc_init);
+ 
+ static void __exit sdp4430_soc_exit(void)
+ {
+-	platform_device_unregister(sdp4430_snd_device);
++	platform_driver_unregister(&sdp4430_driver);
+ }
+ module_exit(sdp4430_soc_exit);
+ 
+ MODULE_AUTHOR("Misael Lopez Cruz <x0052729@ti.com>");
+ MODULE_DESCRIPTION("ALSA SoC SDP4430");
+ MODULE_LICENSE("GPL");
+-
++MODULE_ALIAS("platform:sdp4430-soc-audio");
+diff --git a/sound/soc/omap/zoom2.c b/sound/soc/omap/zoom2.c
+index 7641a7f..8db8e10 100644
+--- a/sound/soc/omap/zoom2.c
++++ b/sound/soc/omap/zoom2.c
+@@ -166,26 +166,14 @@ static struct snd_soc_card snd_soc_zoom2 = {
+ 	.num_dapm_routes = ARRAY_SIZE(audio_map),
+ };
+ 
+-static struct platform_device *zoom2_snd_device;
+-
+-static int __init zoom2_soc_init(void)
++static int __devinit zoom2_soc_probe(struct platform_device *pdev)
+ {
++	struct snd_soc_card *card = &snd_soc_zoom2;
+ 	int ret;
+ 
+-	if (!machine_is_omap_zoom2())
+-		return -ENODEV;
+-	printk(KERN_INFO "Zoom2 SoC init\n");
+-
+-	zoom2_snd_device = platform_device_alloc("soc-audio", -1);
+-	if (!zoom2_snd_device) {
+-		printk(KERN_ERR "Platform device allocation failed\n");
+-		return -ENOMEM;
+-	}
++	pr_info("Zoom2 SoC init\n");
+ 
+-	platform_set_drvdata(zoom2_snd_device, &snd_soc_zoom2);
+-	ret = platform_device_add(zoom2_snd_device);
+-	if (ret)
+-		goto err1;
++	card->dev = &pdev->dev;
+ 
+ 	BUG_ON(gpio_request(ZOOM2_HEADSET_MUX_GPIO, "hs_mux") < 0);
+ 	gpio_direction_output(ZOOM2_HEADSET_MUX_GPIO, 0);
+@@ -193,26 +181,57 @@ static int __init zoom2_soc_init(void)
+ 	BUG_ON(gpio_request(ZOOM2_HEADSET_EXTMUTE_GPIO, "ext_mute") < 0);
+ 	gpio_direction_output(ZOOM2_HEADSET_EXTMUTE_GPIO, 0);
+ 
++	ret = snd_soc_register_card(card);
++	if (ret) {
++		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n",
++			ret);
++		goto err;
++	}
++
+ 	return 0;
+ 
+-err1:
+-	printk(KERN_ERR "Unable to add platform device\n");
+-	platform_device_put(zoom2_snd_device);
++err:
++	gpio_free(ZOOM2_HEADSET_MUX_GPIO);
++	gpio_free(ZOOM2_HEADSET_EXTMUTE_GPIO);
+ 
+ 	return ret;
+ }
+-module_init(zoom2_soc_init);
+ 
+-static void __exit zoom2_soc_exit(void)
++static int __devexit zoom2_soc_remove(struct platform_device *pdev)
+ {
++	struct snd_soc_card *card = platform_get_drvdata(pdev);
++
++	snd_soc_unregister_card(card);
++
+ 	gpio_free(ZOOM2_HEADSET_MUX_GPIO);
+ 	gpio_free(ZOOM2_HEADSET_EXTMUTE_GPIO);
+ 
+-	platform_device_unregister(zoom2_snd_device);
++	return 0;
++}
++
++static struct platform_driver zoom2_driver = {
++	.driver = {
++		.name = "zoom2-soc-audio",
++		.owner = THIS_MODULE,
++	},
++
++	.probe = zoom2_soc_probe,
++	.remove = __devexit_p(zoom2_soc_remove),
++};
++
++static int __init zoom2_soc_init(void)
++{
++	return platform_driver_register(&zoom2_driver);
++}
++module_init(zoom2_soc_init);
++
++static void __exit zoom2_soc_exit(void)
++{
++	platform_driver_unregister(&zoom2_driver);
+ }
+ module_exit(zoom2_soc_exit);
+ 
+ MODULE_AUTHOR("Misael Lopez Cruz <x0052729@ti.com>");
+ MODULE_DESCRIPTION("ALSA SoC Zoom2");
+ MODULE_LICENSE("GPL");
+-
++MODULE_ALIAS("platform:zoom2-soc-audio");
