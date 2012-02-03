@@ -1,0 +1,86 @@
+Source: linux-linaro-lt-mx5-3.2
+Section: devel
+Priority: optional
+Maintainer: Ubuntu Kernel Team <kernel-team@lists.ubuntu.com>
+Standards-Version: 3.8.4.0
+Build-Depends: debhelper (>= 5), cpio, module-init-tools, kernel-wedge (>= 2.24ubuntu1), makedumpfile [amd64 i386], device-tree-compiler [powerpc], libelf-dev, binutils-dev, rsync, libdw-dev
+#Build-Depends-Indep: xmlto, docbook-utils, ghostscript, transfig, bzip2, sharutils, asciidoc
+Build-Conflicts: findutils (= 4.4.1-1ubuntu1)
+Vcs-Git: git://github.com/jcrigby/packaged-linux-linaro-3.2-ci.git linux-linaro-lt-mx5-3.2-3.2.1-7.7-lt-ci-20120203034213+1328242786
+
+Package: linux-headers-3.2.1-7
+Architecture: armel armhf
+Section: devel
+Priority: optional
+Depends: ${misc:Depends}
+#Provides: linux-linaro-lt-mx5-3.2-headers, linux-linaro-lt-mx5-3.2-headers-2.6
+Description: Header files related to Linux kernel version 3.2.1
+ This package provides kernel header files for version 3.2.1, for sites
+ that want the latest kernel headers. Please read
+ /usr/share/doc/linux-linaro-lt-mx5-3.2-headers-3.2.1-7/debian.README.gz for details
+
+Package: linux-linaro-tools-3.2.1-7
+Architecture: armel armhf
+Section: devel
+Priority: optional
+Depends: ${misc:Depends}, ${shlibs:Depends}, linux-tools-common
+Description: Linux kernel tools for version 3.2.1-7
+ This package provides the architecture dependant parts for kernel
+ version locked tools for version 3.2.1-7 on
+ DESC.
+
+Package: linux-image-3.2.1-7-linaro-lt-mx5
+Architecture: armel armhf
+Section: admin
+Priority: optional
+Pre-Depends: dpkg (>= 1.10.24), debconf | debconf-2.0
+Provides: linux-image, linux-image-2.6, fuse-module, 
+Depends: ${misc:Depends}, ${shlibs:Depends}, initramfs-tools (>= 0.36ubuntu6), module-init-tools (>= 3.3-pre11-4ubuntu3), wireless-crda
+Conflicts: hotplug (<< 0.0.20040105-1)
+Recommends: uboot-mkimage, flash-kernel
+Suggests: fdutils, linux-linaro-lt-mx5-3.2-doc-3.2.1 | linux-linaro-lt-mx5-3.2-source-3.2.1, linux-linaro-tools
+Description: Linux kernel image for version 3.2.1 on Freescale i.MX51 and i.MX53 based platforms
+ This package contains the Linux kernel image for version 3.2.1 on
+ Freescale i.MX51 and i.MX53 based platforms.
+ .
+ Also includes the corresponding System.map file, the modules built by the
+ packager, and scripts that try to ensure that the system is not left in an
+ unbootable state after an update.
+ .
+ Supports Freescale i.MX51 i.MX53] processors.
+ .
+ Freescale Babbage LOCO platforms
+ .
+ You likely do not want to install this package directly. Instead, install
+ the linux-linaro-lt-mx5 meta-package, which will ensure that upgrades work
+ correctly, and that supporting packages are also installed.
+
+Package: linux-headers-3.2.1-7-linaro-lt-mx5
+Architecture: armel armhf
+Section: devel
+Priority: optional
+Depends: ${misc:Depends}, linux-headers-3.2.1-7, ${shlibs:Depends}
+Provides: linux-linaro-lt-mx5-3.2-headers, linux-linaro-lt-mx5-3.2-headers-2.6
+Description: Linux kernel headers for version 3.2.1 on Freescale i.MX51 and i.MX53 based platforms
+ This package provides kernel header files for version 3.2.1 on
+ Freescale i.MX51 and i.MX53 based platforms.
+ .
+ This is for sites that want the latest kernel headers.  Please read
+ /usr/share/doc/linux-linaro-lt-mx5-3.2-headers-3.2.1-7/debian.README.gz
+ for details.
+
+Package: linux-image-3.2.1-7-linaro-lt-mx5-dbgsym
+Architecture: armel armhf
+Section: devel
+Priority: optional
+Depends: ${misc:Depends}
+Provides: linux-debug
+Description: Linux kernel debug image for version 3.2.1 on Freescale i.MX51 and i.MX53 based platforms
+ This package provides a kernel debug image for version 3.2.1 on
+ Freescale i.MX51 and i.MX53 based platforms.
+ .
+ This is for sites that wish to debug the kernel.
+ .
+ The kernel image contained in this package is NOT meant to boot from. It
+ is uncompressed, and unstripped. This package also includes the
+ unstripped modules.
