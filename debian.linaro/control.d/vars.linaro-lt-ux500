@@ -1,0 +1,8 @@
+arch="armel armhf"
+supported="STE UX500"
+desc="STE UX500-based systems"
+target="Targeted towards boards such as Snowball"
+bootloader="flash-kernel"
+provides=""
+section_image="universe/base"
+do_debug="Yes"
