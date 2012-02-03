@@ -1,4 +1,4 @@
-Source: SRCPKGNAME
+Source: linux-linaro-shared-3.2
 Section: devel
 Priority: optional
 Maintainer: Ubuntu Kernel Team <kernel-team@lists.ubuntu.com>
@@ -8,23 +8,23 @@ Build-Depends: debhelper (>= 5), cpio, module-init-tools, kernel-wedge (>= 2.24u
 Build-Conflicts: findutils (= 4.4.1-1ubuntu1)
 Vcs-Git: git://github.com/jcrigby/packaged-linux-linaro-3.2-ci.git Linaro-3.2.0-8.8-ci-20120203215757-omap-only
 
-Package: linux-headers-PKGVER-ABINUM
+Package: linux-headers-3.2.0-8
 Architecture: armel armhf
 Section: devel
 Priority: optional
 Depends: ${misc:Depends}
-#Provides: SRCPKGNAME-headers, SRCPKGNAME-headers-2.6
-Description: Header files related to Linux kernel version PKGVER
- This package provides kernel header files for version PKGVER, for sites
+#Provides: linux-linaro-shared-3.2-headers, linux-linaro-shared-3.2-headers-2.6
+Description: Header files related to Linux kernel version 3.2.0
+ This package provides kernel header files for version 3.2.0, for sites
  that want the latest kernel headers. Please read
- /usr/share/doc/SRCPKGNAME-headers-PKGVER-ABINUM/debian.README.gz for details
+ /usr/share/doc/linux-linaro-shared-3.2-headers-3.2.0-8/debian.README.gz for details
 
-Package: COMMONSRCPKGNAME-tools-PKGVER-ABINUM
+Package: linux-linaro-tools-3.2.0-8
 Architecture: armel armhf
 Section: devel
 Priority: optional
 Depends: ${misc:Depends}, ${shlibs:Depends}, linux-tools-common
-Description: Linux kernel tools for version PKGVER-ABINUM
+Description: Linux kernel tools for version 3.2.0-8
  This package provides the architecture dependant parts for kernel
- version locked tools for version PKGVER-ABINUM on
+ version locked tools for version 3.2.0-8 on
  DESC.
