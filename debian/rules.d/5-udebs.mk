@@ -23,7 +23,8 @@ do-binary-udebs: debian/control
 	touch $(CURDIR)/debian/build/no-modules
 
 	touch ignore-dups
-	export SOURCEDIR=$(CURDIR)/debian/d-i-${arch} && \
+	export KW_CHECK_NONFATAL="true" && \
+	  export SOURCEDIR=$(CURDIR)/debian/d-i-${arch} && \
 	  cd $(builddir) && \
 	  kernel-wedge install-files && \
 	  kernel-wedge check
