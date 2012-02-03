@@ -1,0 +1,5 @@
+# arch	version		flavour		installedname			suffix	bdep
+armel	PKGVER-ABINUM	linaro-lt-origen	PKGVER-ABINUM-linaro-lt-origen	-
+# Ports
+# arch	version		flavour		installedname			suffix	bdep
+armhf PKGVER-ABINUM linaro-lt-origen PKGVER-ABINUM-linaro-lt-origen -
